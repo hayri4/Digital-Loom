@@ -66,6 +66,7 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--color-border-pr
     <div>
       <h1>Digital Loom</h1>
       <p>Open-source weaving draft generator</p>
+      <p style="font-size:11px;color:var(--color-text-tertiary);margin-top:4px">Designed by Hayri Dortdivanlioglu, 2026 &middot; Developed on Claude Sonnet 4.6 based on Glassner (2002)</p>
     </div>
     <a href="https://github.com/YOUR-USERNAME/digital-loom" target="_blank" rel="noopener">View on GitHub &rarr;</a>
   </header>
@@ -207,27 +208,28 @@ function DigitalLoom(){
     const gW=i=>Math.round(CANVAS_SP[warpSp[i%wp]]*sc);
     const tH=i=>Math.max(1,Math.round(CANVAS_TP[weftT[i%wr]]*sc));
     const gH=i=>Math.round(CANVAS_SP[weftSp[i%wr]]*sc);
-    const rWpx=Array.from({length:wp},(_,i)=>tW(i)+gW(i)).reduce((a,b)=>a+b,0);
-    const rHpx=Array.from({length:wr},(_,i)=>tH(i)+gH(i)).reduce((a,b)=>a+b,0);
-    if(!rWpx||!rHpx)return;
-    const nRx=Math.max(1,Math.floor(TARGET/rWpx));
-    const nRy=Math.max(1,Math.floor(TARGET/rHpx));
-    const cW=Math.min(nRx*wp,400),cH=Math.min(nRy*wr,400);
+    // Always render exactly TARGET x TARGET — count enough threads to fill the window
+    cv.width=TARGET; cv.height=TARGET;
+    let cW=0,xTot=0; while(xTot<TARGET&&cW<2000){xTot+=tW(cW)+gW(cW);cW++;}
+    let cH=0,yTot=0; while(yTot<TARGET&&cH<2000){yTot+=tH(cH)+gH(cH);cH++;}
     const fab=weave(S,R,T,sh,tr,wp,wr,cW,cH);
     const xs=[],xw=[];let xc=0;
     for(let x=0;x<cW;x++){xs.push(xc);const tw=tW(x)+gW(x);xw.push(tw);xc+=tw;}
     const ys=[],yh=[];let yc=0;
     for(let y=0;y<cH;y++){ys.push(yc);const th=tH(y)+gH(y);yh.push(th);yc+=th;}
-    cv.width=xc;cv.height=yc;
     const ctx=cv.getContext('2d');
-    ctx.fillStyle=GAP_COL;ctx.fillRect(0,0,xc,yc);
-    for(let y=0;y<cH;y++)for(let x=0;x<cW;x++){
-      const wo=fab[y][x],wC=warpC[x%wp],wfC=weftC[y%wr];
-      const cWW=xw[x],cHH=yh[y];
-      const tw=Math.max(1,Math.min(tW(x),cWW-2)),th=Math.max(1,Math.min(tH(y),cHH-2));
-      const ox=(cWW-tw)>>1,oy=(cHH-th)>>1;
-      if(wo){ctx.fillStyle=wfC;ctx.fillRect(xs[x],ys[y]+oy,cWW,th);ctx.fillStyle=wC;ctx.fillRect(xs[x]+ox,ys[y],tw,cHH);}
-      else{ctx.fillStyle=wC;ctx.fillRect(xs[x]+ox,ys[y],tw,cHH);ctx.fillStyle=wfC;ctx.fillRect(xs[x],ys[y]+oy,cWW,th);}
+    ctx.fillStyle=GAP_COL;ctx.fillRect(0,0,TARGET,TARGET);
+    for(let y=0;y<cH;y++){
+      if(ys[y]>=TARGET)break;
+      for(let x=0;x<cW;x++){
+        if(xs[x]>=TARGET)break;
+        const wo=fab[y][x],wC=warpC[x%wp],wfC=weftC[y%wr];
+        const cellW=Math.min(xw[x],TARGET-xs[x]),cellH=Math.min(yh[y],TARGET-ys[y]);
+        const tw=Math.max(1,Math.min(tW(x),cellW-2)),th=Math.max(1,Math.min(tH(y),cellH-2));
+        const ox=(xw[x]-tw)>>1,oy=(yh[y]-th)>>1;
+        if(wo){ctx.fillStyle=wfC;ctx.fillRect(xs[x],ys[y]+oy,cellW,th);ctx.fillStyle=wC;ctx.fillRect(xs[x]+ox,ys[y],tw,cellH);}
+        else{ctx.fillStyle=wC;ctx.fillRect(xs[x]+ox,ys[y],tw,cellH);ctx.fillStyle=wfC;ctx.fillRect(xs[x],ys[y]+oy,cellW,th);}
+      }
     }
   },[S,R,T,sh,tr,wp,wr,warpC,weftC,warpT,weftT,warpSp,weftSp,scale]);
 
@@ -275,7 +277,7 @@ function DigitalLoom(){
   const MAX_CHIPS=14;
 
   const lbl=(txt,w)=>h('div',{style:{width:w,fontSize:11,color:'var(--color-text-secondary)',height:16,display:'flex',alignItems:'flex-end'}},txt);
-  const smBtn=(txt,fn,dim)=>h('button',{onClick:fn,style:{padding:'4px 10px',fontSize:11,borderRadius:5,cursor:'pointer',background:'transparent',border:`0.5px solid ${dim?'var(--color-border-tertiary)':'var(--color-border-secondary)'}`,color:dim?'var(--color-text-tertiary)':'var(--color-text-secondary)',textAlign:'left'}},txt);
+  const smBtn=(txt,fn,dim)=>h('button',{onClick:fn,style:{padding:'4px 10px',fontSize:11,borderRadius:5,cursor:'pointer',background:'transparent',border:`0.5px solid ${dim?'var(--color-border-secondary)':'var(--color-border-primary)'}`,color:'var(--color-text-secondary)',textAlign:'left'}},txt);
   const dlBtn=(label,fn)=>h('button',{onClick:fn,style:{padding:'5px 12px',fontSize:12,borderRadius:6,cursor:'pointer',background:'transparent',border:'0.5px solid var(--color-border-primary)',color:'var(--color-text-secondary)',display:'flex',alignItems:'center',gap:5,flexShrink:0}},h('span',{style:{fontSize:14,lineHeight:1}},'&#8595;'),label);
   const divider=h('div',{style:{borderTop:'0.5px solid var(--color-border-tertiary)',margin:'8px 0'}});
   const scaleLabel=`${scale}\u00D7`;
@@ -348,22 +350,31 @@ function DigitalLoom(){
       'Simulated cloth'),
     h('div',{style:{fontSize:12,color:'var(--color-text-secondary)',marginBottom:10}},
       'Over-under interlacing with thread thickness and spacing applied'),
-    h('canvas',{ref:cvRef,style:{display:'block',borderRadius:4,border:'0.5px solid var(--color-border-tertiary)',maxWidth:'100%',marginBottom:10}}),
-    h('div',{style:{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap',marginTop:2}},
-      dlBtn('Download PNG',downloadSim),
-      h('div',{style:{display:'flex',alignItems:'center',gap:8,marginLeft:'auto'}},
+    // Fixed-size window — canvas renders inside, layout never jumps
+    h('div',{style:{
+        width:TARGET+'px',height:TARGET+'px',
+        overflow:'hidden',flexShrink:0,
+        borderRadius:4,border:'0.5px solid var(--color-border-tertiary)',
+        background:GAP_COL,marginBottom:10,
+    }},
+      h('canvas',{ref:cvRef,style:{display:'block'}})
+    ),
+    // Scale LEFT · Download RIGHT — always anchored below the fixed window
+    h('div',{style:{display:'flex',alignItems:'center',gap:10,width:TARGET+'px'}},
+      h('div',{style:{display:'flex',alignItems:'center',gap:8,flex:1,minWidth:0}},
         h('span',{style:{fontSize:11,color:'var(--color-text-tertiary)',whiteSpace:'nowrap'}},'Scale'),
         h('input',{type:'range',min:'0.25',max:'4',step:'0.25',value:scale,
           onChange:ev=>setScale(parseFloat(ev.target.value)),
-          style:{width:90}}),
+          style:{flex:1}}),
         h('span',{style:{fontSize:12,fontFamily:'var(--font-mono)',color:'var(--color-text-primary)',minWidth:32,textAlign:'right'}},scaleLabel)
-      )
+      ),
+      dlBtn('Download PNG',downloadSim)
     )
   );
 
   return h('div',{style:{fontFamily:'var(--font-sans)'}},
     // Steppers — always full width
-    h('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'8px 24px',marginBottom:'1.5rem',padding:'12px 14px',border:'0.5px solid var(--color-border-tertiary)',borderRadius:8,background:'var(--color-background-secondary)'}},
+    h('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'8px 10px',marginBottom:'1.5rem',padding:'12px 14px',border:'0.5px solid var(--color-border-tertiary)',borderRadius:8,background:'var(--color-background-secondary)'}},
       h(Stepper,{label:'Shafts',value:sh,min:2,max:16,onChange:chSh}),
       h(Stepper,{label:'Warp repeat',value:wp,min:2,max:32,onChange:chWp}),
       h(Stepper,{label:'Treadles',value:tr,min:2,max:16,onChange:chTr}),
