@@ -4,9 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Digital Loom — Weaving Draft Generator</title>
-<meta name="description" content="Open-source interactive weaving draft generator. Design threading, treadling, tie-up and thread properties, then simulate the woven cloth.">
-<meta property="og:title" content="Digital Loom">
-<meta property="og:description" content="Open-source interactive weaving draft generator.">
+<meta name="description" content="Open-source interactive weaving draft generator.">
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
 :root{
@@ -20,14 +18,12 @@
   --color-border-secondary:rgba(0,0,0,0.18);
   --color-border-tertiary:rgba(0,0,0,0.10);
   --font-sans:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;
-  --font-mono:'SF Mono','Fira Code','Fira Mono','Courier New',monospace;
+  --font-mono:'SF Mono','Fira Code','Courier New',monospace;
 }
 @media(prefers-color-scheme:dark){
   :root{
-    --color-text-primary:#ebebeb;
-    --color-text-secondary:#a0a0a0;
-    --color-text-tertiary:#606060;
-    --color-background-primary:#1c1c1c;
+    --color-text-primary:#ebebeb;--color-text-secondary:#a0a0a0;
+    --color-text-tertiary:#606060;--color-background-primary:#1c1c1c;
     --color-background-secondary:#272727;
     --color-border-primary:rgba(255,255,255,0.28);
     --color-border-secondary:rgba(255,255,255,0.18);
@@ -35,7 +31,7 @@
   }
 }
 body{font-family:var(--font-sans);background:var(--color-background-primary);color:var(--color-text-primary);line-height:1.5;min-height:100vh;}
-.page{max-width:980px;margin:0 auto;padding:2.5rem 1.5rem 4rem;}
+.page{max-width:1440px;margin:0 auto;padding:2.5rem 1.5rem 4rem;}
 .page-header{display:flex;align-items:baseline;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:2rem;padding-bottom:1.25rem;border-bottom:0.5px solid var(--color-border-tertiary);}
 .page-header h1{font-size:22px;font-weight:500;letter-spacing:-0.01em;}
 .page-header p{font-size:13px;color:var(--color-text-secondary);margin-top:4px;}
@@ -47,7 +43,21 @@ body{font-family:var(--font-sans);background:var(--color-background-primary);col
 input[type=number]::-webkit-inner-spin-button,
 input[type=number]::-webkit-outer-spin-button{-webkit-appearance:none;}
 input[type=number]{-moz-appearance:textfield;appearance:textfield;}
+input[type=range]{accent-color:var(--color-text-primary);cursor:pointer;}
 button:focus-visible,input:focus-visible{outline:2px solid var(--color-border-primary);outline-offset:1px;}
+
+/* Two-column desktop layout */
+.loom-wrap{display:flex;flex-direction:column;gap:1.5rem;align-items:flex-start;}
+.loom-right{width:100%;}
+@media(min-width:960px){
+  .loom-wrap{flex-direction:row;gap:3rem;align-items:flex-start;}
+  .loom-left{flex-shrink:0;}
+  .loom-right{
+    flex:1;min-width:280px;
+    position:sticky;top:1.5rem;
+    overflow-x:auto;
+  }
+}
 </style>
 </head>
 <body>
@@ -57,12 +67,12 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--color-border-pr
       <h1>Digital Loom</h1>
       <p>Open-source weaving draft generator</p>
     </div>
-    <a href="https://github.com/YOUR-USERNAME/digital-loom" target="_blank" rel="noopener">View on GitHub →</a>
+    <a href="https://github.com/YOUR-USERNAME/digital-loom" target="_blank" rel="noopener">View on GitHub &rarr;</a>
   </header>
   <main id="root"></main>
   <footer class="page-footer">
-    <span>Digital Loom · MIT License · <a href="https://github.com/YOUR-USERNAME/digital-loom" target="_blank" rel="noopener">Source on GitHub</a></span>
-    <span>Implements the weaving equation from Andrew Glassner, <em>IEEE CG&amp;A</em> 2002 · Built with React</span>
+    <span>Digital Loom &middot; MIT License &middot; <a href="https://github.com/YOUR-USERNAME/digital-loom" target="_blank" rel="noopener">Source on GitHub</a></span>
+    <span>Weaving equation from Andrew Glassner, <em>IEEE CG&amp;A</em> 2002 &middot; Built with React</span>
   </footer>
 </div>
 <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
@@ -101,37 +111,28 @@ const DEF_WARP='#9B6010',DEF_WEFT='#1A3E7A',DEF_T=3,DEF_S=0;
 function buildDraftPNG(S,R,T,dF,sh,tr,wp,wr,warpC,weftC){
   const ECS=24,ESW=14,M=20,LH=20,IG=6;
   const x1=M,x2=M+wp*ECS+IG,x3=x2+tr*ECS+IG;
-  const W=x3+ESW+M;
-  const H=M+LH+ESW+4+sh*ECS+IG+LH+wr*ECS+M;
-  const cv=document.createElement('canvas');
-  cv.width=W;cv.height=H;
+  const W=x3+ESW+M,H=M+LH+ESW+4+sh*ECS+IG+LH+wr*ECS+M;
+  const cv=document.createElement('canvas');cv.width=W;cv.height=H;
   const ctx=cv.getContext('2d');
   ctx.fillStyle='#ffffff';ctx.fillRect(0,0,W,H);
-  function cell(x,y,fill,stroke){
-    ctx.fillStyle=fill;ctx.fillRect(x+.5,y+.5,ECS-1,ECS-1);
-    ctx.strokeStyle=stroke||'#d0ccc8';ctx.lineWidth=.5;ctx.strokeRect(x+.5,y+.5,ECS-1,ECS-1);
-  }
+  function cell(x,y,fill,stroke){ctx.fillStyle=fill;ctx.fillRect(x+.5,y+.5,ECS-1,ECS-1);ctx.strokeStyle=stroke||'#d0ccc8';ctx.lineWidth=.5;ctx.strokeRect(x+.5,y+.5,ECS-1,ECS-1);}
   function swH(x,y,w,col){ctx.fillStyle=col;ctx.fillRect(x+.5,y+.5,w-1,ESW-1);ctx.strokeStyle='#ccc';ctx.lineWidth=.5;ctx.strokeRect(x+.5,y+.5,w-1,ESW-1);}
   function swV(x,y,hh,col){ctx.fillStyle=col;ctx.fillRect(x+.5,y+.5,ESW-1,hh-1);ctx.strokeStyle='#ccc';ctx.lineWidth=.5;ctx.strokeRect(x+.5,y+.5,ESW-1,hh-1);}
-  ctx.font='11px system-ui,sans-serif';ctx.fillStyle='#888888';
-  ctx.fillText('threading',x1,M+14);
-  ctx.fillText('tie-up',x2,M+14);
+  ctx.font='11px system-ui,sans-serif';ctx.fillStyle='#888';
+  ctx.fillText('threading',x1,M+14);ctx.fillText('tie-up',x2,M+14);
   let y=M+LH;
   for(let c=0;c<wp;c++)swH(x1+c*ECS,y,ECS,warpC[c]);
   y+=ESW+4;
   for(let r=0;r<sh;r++)for(let c=0;c<wp;c++)cell(x1+c*ECS,y+r*ECS,S[r][c]?'#1a1a1a':'#f4f4f2');
   for(let r=0;r<sh;r++)for(let c=0;c<tr;c++)cell(x2+c*ECS,y+r*ECS,T[r][c]?'#1a1a1a':'#f4f4f2');
   y+=sh*ECS+IG;
-  ctx.fillStyle='#888888';
-  ctx.fillText('drawdown',x1,y+14);
-  ctx.fillText('treadling',x2,y+14);
+  ctx.fillStyle='#888';ctx.fillText('drawdown',x1,y+14);ctx.fillText('treadling',x2,y+14);
   y+=LH;
   for(let r=0;r<wr;r++)for(let c=0;c<wp;c++)cell(x1+c*ECS,y+r*ECS,dF[r][c]?warpC[c]:weftC[r],'rgba(0,0,0,0.08)');
   for(let r=0;r<wr;r++)for(let c=0;c<tr;c++)cell(x2+c*ECS,y+r*ECS,R[r][c]?'#1a1a1a':'#f4f4f2');
   for(let r=0;r<wr;r++)swV(x3,y+r*ECS,ECS,weftC[r]);
   return cv;
 }
-
 function Grid({rows,cols,getVal,onClick,getColor}){
   const cells=[];
   for(let r=0;r<rows;r++)for(let c=0;c<cols;c++){
@@ -154,15 +155,15 @@ function Stepper({label,value,min,max,onChange}){
   const btn=(sym,dis,fn)=>h('button',{onClick:fn,disabled:dis,style:{width:22,height:26,border:'0.5px solid var(--color-border-primary)',borderRadius:4,cursor:dis?'not-allowed':'pointer',background:'transparent',fontSize:14,color:'var(--color-text-primary)',display:'flex',alignItems:'center',justifyContent:'center',opacity:dis?0.3:1,padding:0,flexShrink:0}},sym);
   return h('div',{style:{display:'flex',alignItems:'center',gap:4}},
     h('span',{style:{fontSize:12,color:'var(--color-text-secondary)',minWidth:90,flexShrink:0}},label),
-    btn('−',value<=min,()=>onChange(Math.max(min,value-1))),
+    btn('-',value<=min,()=>onChange(Math.max(min,value-1))),
     h('input',{type:'number',value:draft,min,max,onChange:ev=>setDraft(ev.target.value),onBlur:ev=>commit(ev.target.value),onKeyDown:ev=>{if(ev.key==='Enter')commit(ev.target.value);},style:{width:46,height:26,textAlign:'center',fontSize:13,fontWeight:500,border:'0.5px solid var(--color-border-primary)',borderRadius:4,background:'var(--color-background-primary)',color:'var(--color-text-primary)',boxSizing:'border-box',padding:0}}),
     btn('+',value>=max,()=>onChange(Math.min(max,value+1))),
-    h('span',{style:{fontSize:10,color:'var(--color-text-tertiary)',marginLeft:2}},`${min}–${max}`)
+    h('span',{style:{fontSize:10,color:'var(--color-text-tertiary)',marginLeft:2}},`${min}-${max}`)
   );
 }
 function ThickPicker({shared,active,onPick}){
   return h('div',null,
-    h('div',{style:{fontSize:11,color:'var(--color-text-secondary)',marginBottom:5}},'Thickness'+(active&&shared===null?' — mixed':'')),
+    h('div',{style:{fontSize:11,color:'var(--color-text-secondary)',marginBottom:5}},'Thickness'+(active&&shared===null?' - mixed':'')),
     h('div',{style:{display:'flex',gap:4}},
       [1,2,3,4,5].map(t=>{const on=shared===t;return h('button',{key:t,onClick:()=>active&&onPick(t),title:`Thickness ${t}`,style:{width:32,height:32,border:`0.5px solid ${on?'var(--color-text-primary)':'var(--color-border-primary)'}`,borderRadius:5,background:on?'var(--color-background-secondary)':'transparent',cursor:active?'pointer':'default',opacity:active?1:0.28,display:'flex',alignItems:'center',justifyContent:'center',padding:0}},h('div',{style:{width:18,height:t*2+1,background:on?'var(--color-text-primary)':'var(--color-text-secondary)',borderRadius:1}}));})
     )
@@ -171,7 +172,7 @@ function ThickPicker({shared,active,onPick}){
 function SpacingPicker({shared,active,onPick}){
   const GV=[1,4,7,11,15];
   return h('div',null,
-    h('div',{style:{fontSize:11,color:'var(--color-text-secondary)',marginBottom:5}},'Spacing'+(active&&shared===null?' — mixed':'')),
+    h('div',{style:{fontSize:11,color:'var(--color-text-secondary)',marginBottom:5}},'Spacing'+(active&&shared===null?' - mixed':'')),
     h('div',{style:{display:'flex',gap:4}},
       [0,1,2,3,4].map(s=>{const on=shared===s;const col=on?'var(--color-text-primary)':'var(--color-text-secondary)';return h('button',{key:s,onClick:()=>active&&onPick(s),title:`Spacing ${s}`,style:{width:32,height:32,border:`0.5px solid ${on?'var(--color-text-primary)':'var(--color-border-primary)'}`,borderRadius:5,background:on?'var(--color-background-secondary)':'transparent',cursor:active?'pointer':'default',opacity:active?1:0.28,display:'flex',alignItems:'center',justifyContent:'center',padding:0}},h('div',{style:{display:'flex',alignItems:'center',gap:GV[s]}},h('div',{style:{width:4,height:12,background:col,borderRadius:1}}),h('div',{style:{width:4,height:12,background:col,borderRadius:1}})));})
     )
@@ -194,37 +195,41 @@ function DigitalLoom(){
   const [weftSp,setWeftSp]=useState(()=>Array(INIT_WR).fill(DEF_S));
   const [selType,setSelType]=useState(null);
   const [selSet,setSelSet]=useState(new Set());
+  const [scale,setScale]=useState(1);
   const cvRef=useRef(null);
 
   const dF=useMemo(()=>weave(S,R,T,sh,tr,wp,wr,wp,wr),[S,R,T,sh,tr,wp,wr]);
 
   useEffect(()=>{
     const cv=cvRef.current;if(!cv)return;
-    const rWpx=warpT.slice(0,wp).reduce((s,t,i)=>s+CANVAS_TP[t]+CANVAS_SP[warpSp[i]],0);
-    const rHpx=weftT.slice(0,wr).reduce((s,t,i)=>s+CANVAS_TP[t]+CANVAS_SP[weftSp[i]],0);
+    const sc=scale;
+    const tW=i=>Math.max(1,Math.round(CANVAS_TP[warpT[i%wp]]*sc));
+    const gW=i=>Math.round(CANVAS_SP[warpSp[i%wp]]*sc);
+    const tH=i=>Math.max(1,Math.round(CANVAS_TP[weftT[i%wr]]*sc));
+    const gH=i=>Math.round(CANVAS_SP[weftSp[i%wr]]*sc);
+    const rWpx=Array.from({length:wp},(_,i)=>tW(i)+gW(i)).reduce((a,b)=>a+b,0);
+    const rHpx=Array.from({length:wr},(_,i)=>tH(i)+gH(i)).reduce((a,b)=>a+b,0);
     if(!rWpx||!rHpx)return;
     const nRx=Math.max(1,Math.floor(TARGET/rWpx));
     const nRy=Math.max(1,Math.floor(TARGET/rHpx));
     const cW=Math.min(nRx*wp,400),cH=Math.min(nRy*wr,400);
     const fab=weave(S,R,T,sh,tr,wp,wr,cW,cH);
     const xs=[],xw=[];let xc=0;
-    for(let x=0;x<cW;x++){xs.push(xc);const tw=CANVAS_TP[warpT[x%wp]]+CANVAS_SP[warpSp[x%wp]];xw.push(tw);xc+=tw;}
+    for(let x=0;x<cW;x++){xs.push(xc);const tw=tW(x)+gW(x);xw.push(tw);xc+=tw;}
     const ys=[],yh=[];let yc=0;
-    for(let y=0;y<cH;y++){ys.push(yc);const th=CANVAS_TP[weftT[y%wr]]+CANVAS_SP[weftSp[y%wr]];yh.push(th);yc+=th;}
+    for(let y=0;y<cH;y++){ys.push(yc);const th=tH(y)+gH(y);yh.push(th);yc+=th;}
     cv.width=xc;cv.height=yc;
     const ctx=cv.getContext('2d');
     ctx.fillStyle=GAP_COL;ctx.fillRect(0,0,xc,yc);
     for(let y=0;y<cH;y++)for(let x=0;x<cW;x++){
-      const warpOnTop=fab[y][x];
-      const wC=warpC[x%wp],wfC=weftC[y%wr];
-      const cellW=xw[x],cellH=yh[y];
-      const tw=Math.max(1,Math.min(CANVAS_TP[warpT[x%wp]],cellW-2));
-      const th=Math.max(1,Math.min(CANVAS_TP[weftT[y%wr]],cellH-2));
-      const offX=(cellW-tw)>>1,offY=(cellH-th)>>1;
-      if(warpOnTop){ctx.fillStyle=wfC;ctx.fillRect(xs[x],ys[y]+offY,cellW,th);ctx.fillStyle=wC;ctx.fillRect(xs[x]+offX,ys[y],tw,cellH);}
-      else{ctx.fillStyle=wC;ctx.fillRect(xs[x]+offX,ys[y],tw,cellH);ctx.fillStyle=wfC;ctx.fillRect(xs[x],ys[y]+offY,cellW,th);}
+      const wo=fab[y][x],wC=warpC[x%wp],wfC=weftC[y%wr];
+      const cWW=xw[x],cHH=yh[y];
+      const tw=Math.max(1,Math.min(tW(x),cWW-2)),th=Math.max(1,Math.min(tH(y),cHH-2));
+      const ox=(cWW-tw)>>1,oy=(cHH-th)>>1;
+      if(wo){ctx.fillStyle=wfC;ctx.fillRect(xs[x],ys[y]+oy,cWW,th);ctx.fillStyle=wC;ctx.fillRect(xs[x]+ox,ys[y],tw,cHH);}
+      else{ctx.fillStyle=wC;ctx.fillRect(xs[x]+ox,ys[y],tw,cHH);ctx.fillStyle=wfC;ctx.fillRect(xs[x],ys[y]+oy,cWW,th);}
     }
-  },[S,R,T,sh,tr,wp,wr,warpC,weftC,warpT,weftT,warpSp,weftSp]);
+  },[S,R,T,sh,tr,wp,wr,warpC,weftC,warpT,weftT,warpSp,weftSp,scale]);
 
   const downloadDraft=()=>{
     const cv=buildDraftPNG(S,R,T,dF,sh,tr,wp,wr,warpC,weftC);
@@ -243,7 +248,6 @@ function DigitalLoom(){
   const clkS=(s,x)=>setS(p=>{const n=clone2D(p);for(let i=0;i<sh;i++)n[i][x]=0;n[s][x]=1;return n;});
   const clkR=(y,t)=>setR(p=>{const n=clone2D(p);n[y][t]^=1;return n;});
   const clkT=(s,t)=>setT(p=>{const n=clone2D(p);n[s][t]^=1;return n;});
-
   const clickSwatch=(type,idx)=>{
     if(selType&&selType!==type){setSelType(type);setSelSet(new Set([idx]));return;}
     const next=new Set(selSet);
@@ -272,10 +276,92 @@ function DigitalLoom(){
 
   const lbl=(txt,w)=>h('div',{style:{width:w,fontSize:11,color:'var(--color-text-secondary)',height:16,display:'flex',alignItems:'flex-end'}},txt);
   const smBtn=(txt,fn,dim)=>h('button',{onClick:fn,style:{padding:'4px 10px',fontSize:11,borderRadius:5,cursor:'pointer',background:'transparent',border:`0.5px solid ${dim?'var(--color-border-tertiary)':'var(--color-border-secondary)'}`,color:dim?'var(--color-text-tertiary)':'var(--color-text-secondary)',textAlign:'left'}},txt);
-  const dlBtn=(label,fn)=>h('button',{onClick:fn,style:{padding:'5px 12px',fontSize:12,borderRadius:6,cursor:'pointer',background:'transparent',border:'0.5px solid var(--color-border-primary)',color:'var(--color-text-secondary)',display:'flex',alignItems:'center',gap:5}},h('span',{style:{fontSize:14,lineHeight:1}},'⬇'),label);
+  const dlBtn=(label,fn)=>h('button',{onClick:fn,style:{padding:'5px 12px',fontSize:12,borderRadius:6,cursor:'pointer',background:'transparent',border:'0.5px solid var(--color-border-primary)',color:'var(--color-text-secondary)',display:'flex',alignItems:'center',gap:5,flexShrink:0}},h('span',{style:{fontSize:14,lineHeight:1}},'&#8595;'),label);
   const divider=h('div',{style:{borderTop:'0.5px solid var(--color-border-tertiary)',margin:'8px 0'}});
+  const scaleLabel=`${scale}\u00D7`;
+
+  // ── Draft section ──────────────────────────────────────────────
+  const draftSection=h('div',{style:{display:'flex',flexDirection:'column',gap:0}},
+    h('div',{style:{display:'flex',gap:GAP,marginBottom:4}},
+      h('div',null,
+        h('div',{style:{fontSize:10,color:'var(--color-text-tertiary)',marginBottom:3}},'warp threads \u2014 click to select'),
+        h(Swatches,{colors:warpC,selSet:selType==='warp'?selSet:new Set(),onSelect:i=>clickSwatch('warp',i),dir:'warp'})
+      ),
+      h('div',{style:{width:tr*CS}})
+    ),
+    h('div',{style:{display:'flex',gap:GAP,marginBottom:2}},lbl(`threading \u00B7 ${sh} shafts`,wp*CS),lbl(`tie-up \u00B7 ${tr} treadles`,tr*CS)),
+    h('div',{style:{display:'flex',gap:GAP,marginBottom:GAP}},
+      h(Grid,{rows:sh,cols:wp,getVal:(s,x)=>S[s][x],onClick:clkS}),
+      h(Grid,{rows:sh,cols:tr,getVal:(s,t)=>T[s][t],onClick:clkT})
+    ),
+    h('div',{style:{display:'flex',gap:GAP,marginBottom:2}},lbl('drawdown',wp*CS),lbl('treadling \u00B7 multi-pick',tr*CS)),
+    h('div',{style:{display:'flex',gap:GAP,alignItems:'flex-start'}},
+      h(Grid,{rows:wr,cols:wp,getVal:(y,x)=>dF[y][x],getColor:(y,x,v)=>v?warpC[x]:weftC[y]}),
+      h(Grid,{rows:wr,cols:tr,getVal:(y,t)=>R[y][t],onClick:clkR}),
+      h(Swatches,{colors:weftC,selSet:selType==='weft'?selSet:new Set(),onSelect:i=>clickSwatch('weft',i),dir:'weft'})
+    ),
+    h('div',{style:{fontSize:10,color:'var(--color-text-tertiary)',marginTop:3}},'\u2191 weft threads \u2014 click to select'),
+    h('div',{style:{fontSize:11,color:'var(--color-text-tertiary)',marginTop:5,lineHeight:1.6}},
+      'Threading: one per column \u00B7 Treadling: multi-pick \u00B7 Tie-up: toggle freely'
+    ),
+    h('div',{style:{marginTop:12}},dlBtn('Download draft PNG',downloadDraft))
+  );
+
+  // ── Thread editor panel ────────────────────────────────────────
+  const editorPanel=h('div',{style:{display:'flex',flexDirection:'column',gap:0,width:186,paddingTop:16}},
+    h('div',{style:{marginBottom:8}},
+      h('div',{style:{fontSize:12,fontWeight:500,color:'var(--color-text-primary)',marginBottom:2}},
+        hasSel?`${selSet.size} ${selType} thread${selSet.size>1?'s':''} selected`:'Thread editor'),
+      hasSel
+        ?h('div',{style:{display:'flex',flexWrap:'wrap',gap:3}},
+            selColors.slice(0,MAX_CHIPS).map((c,i)=>h('div',{key:i,title:`Thread ${sortedIdx[i]+1}`,style:{width:13,height:13,background:c,borderRadius:2,border:'0.5px solid var(--color-border-secondary)'}})),
+            selColors.length>MAX_CHIPS&&h('span',{style:{fontSize:10,color:'var(--color-text-tertiary)',alignSelf:'center'}},`+${selColors.length-MAX_CHIPS}`))
+        :h('div',{style:{fontSize:11,color:'var(--color-text-tertiary)',lineHeight:1.6}},'Click thread swatches to select.')
+    ),
+    hasSel&&h('div',{style:{marginBottom:6}},
+      allSameC
+        ?h('div',{style:{display:'flex',alignItems:'center',gap:6,padding:'4px 7px',marginBottom:6,border:'0.5px solid var(--color-border-tertiary)',borderRadius:5,background:'var(--color-background-secondary)'}},
+            h('div',{style:{width:14,height:14,background:sharedColor,borderRadius:2,flexShrink:0,border:'0.5px solid var(--color-border-secondary)'}}),
+            h('span',{style:{fontSize:11,fontFamily:'var(--font-mono)',color:'var(--color-text-secondary)'}},sharedColor&&sharedColor.toUpperCase()))
+        :h('div',{style:{fontSize:11,color:'var(--color-text-tertiary)',fontStyle:'italic',marginBottom:6}},'Mixed colors')
+    ),
+    h('div',{style:{fontSize:11,color:'var(--color-text-secondary)',marginBottom:5}},'Color'),
+    h('div',{style:{display:'grid',gridTemplateColumns:'repeat(6,24px)',gap:3,marginBottom:8,opacity:hasSel?1:0.28}},
+      PALETTE.map(c=>h('div',{key:c,onClick:()=>pickColor(c),style:{width:24,height:24,background:c,borderRadius:3,boxSizing:'border-box',cursor:hasSel?'pointer':'default',border:c===sharedColor?'2.5px solid var(--color-text-primary)':'2.5px solid transparent'}}))
+    ),
+    divider,
+    h('div',{style:{opacity:hasSel?1:0.28,marginBottom:8}},h(ThickPicker,{shared:sharedThick,active:hasSel,onPick:pickThick})),
+    divider,
+    h('div',{style:{opacity:hasSel?1:0.28,marginBottom:8}},h(SpacingPicker,{shared:sharedSpace,active:hasSel,onPick:pickSpacing})),
+    hasSel&&h('div',null,
+      divider,
+      h('div',{style:{display:'flex',flexDirection:'column',gap:5}},
+        smBtn(`Select all ${selType} threads`,selectAll,false),
+        smBtn('Deselect all',deselectAll,true)
+      )
+    )
+  );
+
+  // ── Simulation panel ───────────────────────────────────────────
+  const simPanel=h('div',null,
+    h('div',{style:{fontSize:13,fontWeight:500,color:'var(--color-text-primary)',marginBottom:10}},
+      'Simulated cloth'),
+    h('div',{style:{fontSize:12,color:'var(--color-text-secondary)',marginBottom:10}},
+      'Over-under interlacing with thread thickness and spacing applied'),
+    // Scale + download row
+    h('div',{style:{display:'flex',alignItems:'center',gap:12,marginBottom:12,flexWrap:'wrap'}},
+      h('span',{style:{fontSize:11,color:'var(--color-text-tertiary)',whiteSpace:'nowrap'}},'Scale'),
+      h('input',{type:'range',min:'0.25',max:'4',step:'0.25',value:scale,
+        onChange:ev=>setScale(parseFloat(ev.target.value)),
+        style:{flex:1,minWidth:100,maxWidth:180}}),
+      h('span',{style:{fontSize:12,fontFamily:'var(--font-mono)',color:'var(--color-text-primary)',minWidth:36,textAlign:'right'}},scaleLabel),
+      dlBtn('Download PNG',downloadSim)
+    ),
+    h('canvas',{ref:cvRef,style:{display:'block',borderRadius:4,border:'0.5px solid var(--color-border-tertiary)',maxWidth:'100%'}})
+  );
 
   return h('div',{style:{fontFamily:'var(--font-sans)'}},
+    // Steppers — always full width
     h('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'8px 24px',marginBottom:'1.5rem',padding:'12px 14px',border:'0.5px solid var(--color-border-tertiary)',borderRadius:8,background:'var(--color-background-secondary)'}},
       h(Stepper,{label:'Shafts',value:sh,min:2,max:16,onChange:chSh}),
       h(Stepper,{label:'Warp repeat',value:wp,min:2,max:32,onChange:chWp}),
@@ -286,66 +372,22 @@ function DigitalLoom(){
         smBtn('Reset all',()=>{setS(defS(sh,wp));setR(defR(wr,tr));setT(mat(sh,tr));},true)
       )
     ),
-    h('div',{style:{display:'flex',gap:24,alignItems:'flex-start',flexWrap:'wrap',marginBottom:'1.5rem'}},
-      h('div',{style:{display:'flex',flexDirection:'column',gap:0}},
-        h('div',{style:{display:'flex',gap:GAP,marginBottom:4}},
-          h('div',null,
-            h('div',{style:{fontSize:10,color:'var(--color-text-tertiary)',marginBottom:3}},'warp threads — click to select'),
-            h(Swatches,{colors:warpC,selSet:selType==='warp'?selSet:new Set(),onSelect:i=>clickSwatch('warp',i),dir:'warp'})
-          ),
-          h('div',{style:{width:tr*CS}})
-        ),
-        h('div',{style:{display:'flex',gap:GAP,marginBottom:2}},lbl(`threading · ${sh} shafts`,wp*CS),lbl(`tie-up · ${tr} treadles`,tr*CS)),
-        h('div',{style:{display:'flex',gap:GAP,marginBottom:GAP}},
-          h(Grid,{rows:sh,cols:wp,getVal:(s,x)=>S[s][x],onClick:clkS}),
-          h(Grid,{rows:sh,cols:tr,getVal:(s,t)=>T[s][t],onClick:clkT})
-        ),
-        h('div',{style:{display:'flex',gap:GAP,marginBottom:2}},lbl('drawdown',wp*CS),lbl('treadling · multi-pick',tr*CS)),
-        h('div',{style:{display:'flex',gap:GAP,alignItems:'flex-start'}},
-          h(Grid,{rows:wr,cols:wp,getVal:(y,x)=>dF[y][x],getColor:(y,x,v)=>v?warpC[x]:weftC[y]}),
-          h(Grid,{rows:wr,cols:tr,getVal:(y,t)=>R[y][t],onClick:clkR}),
-          h(Swatches,{colors:weftC,selSet:selType==='weft'?selSet:new Set(),onSelect:i=>clickSwatch('weft',i),dir:'weft'})
-        ),
-        h('div',{style:{fontSize:10,color:'var(--color-text-tertiary)',marginTop:3}},'↑ weft threads — click to select'),
-        h('div',{style:{fontSize:11,color:'var(--color-text-tertiary)',marginTop:5,lineHeight:1.6}},'Threading: one per column · Treadling: multi-pick · Tie-up: toggle freely'),
-        h('div',{style:{marginTop:12}},dlBtn('Download draft PNG',downloadDraft))
-      ),
-      h('div',{style:{display:'flex',flexDirection:'column',gap:0,width:186,paddingTop:16}},
-        h('div',{style:{marginBottom:8}},
-          h('div',{style:{fontSize:12,fontWeight:500,color:'var(--color-text-primary)',marginBottom:2}},hasSel?`${selSet.size} ${selType} thread${selSet.size>1?'s':''} selected`:'Thread editor'),
-          hasSel
-            ?h('div',{style:{display:'flex',flexWrap:'wrap',gap:3}},selColors.slice(0,MAX_CHIPS).map((c,i)=>h('div',{key:i,title:`Thread ${sortedIdx[i]+1}`,style:{width:13,height:13,background:c,borderRadius:2,border:'0.5px solid var(--color-border-secondary)'}})),selColors.length>MAX_CHIPS&&h('span',{style:{fontSize:10,color:'var(--color-text-tertiary)',alignSelf:'center'}},`+${selColors.length-MAX_CHIPS}`))
-            :h('div',{style:{fontSize:11,color:'var(--color-text-tertiary)',lineHeight:1.6}},'Click thread swatches to select.')
-        ),
-        hasSel&&h('div',{style:{marginBottom:6}},
-          allSameC
-            ?h('div',{style:{display:'flex',alignItems:'center',gap:6,padding:'4px 7px',marginBottom:6,border:'0.5px solid var(--color-border-tertiary)',borderRadius:5,background:'var(--color-background-secondary)'}},
-                h('div',{style:{width:14,height:14,background:sharedColor,borderRadius:2,flexShrink:0,border:'0.5px solid var(--color-border-secondary)'}}),
-                h('span',{style:{fontSize:11,fontFamily:'var(--font-mono)',color:'var(--color-text-secondary)'}},sharedColor&&sharedColor.toUpperCase()))
-            :h('div',{style:{fontSize:11,color:'var(--color-text-tertiary)',fontStyle:'italic',marginBottom:6}},'Mixed colors')
-        ),
-        h('div',{style:{fontSize:11,color:'var(--color-text-secondary)',marginBottom:5}},'Color'),
-        h('div',{style:{display:'grid',gridTemplateColumns:'repeat(6,24px)',gap:3,marginBottom:8,opacity:hasSel?1:0.28}},
-          PALETTE.map(c=>h('div',{key:c,onClick:()=>pickColor(c),style:{width:24,height:24,background:c,borderRadius:3,boxSizing:'border-box',cursor:hasSel?'pointer':'default',border:c===sharedColor?'2.5px solid var(--color-text-primary)':'2.5px solid transparent'}}))
-        ),
-        divider,
-        h('div',{style:{opacity:hasSel?1:0.28,marginBottom:8}},h(ThickPicker,{shared:sharedThick,active:hasSel,onPick:pickThick})),
-        divider,
-        h('div',{style:{opacity:hasSel?1:0.28,marginBottom:8}},h(SpacingPicker,{shared:sharedSpace,active:hasSel,onPick:pickSpacing})),
-        hasSel&&h('div',null,
-          divider,
-          h('div',{style:{display:'flex',flexDirection:'column',gap:5}},
-            smBtn(`Select all ${selType} threads`,selectAll,false),
-            smBtn('Deselect all',deselectAll,true)
-          )
+
+    // Two-column responsive layout
+    h('div',{className:'loom-wrap'},
+
+      // LEFT: draft + thread editor
+      h('div',{className:'loom-left'},
+        h('div',{style:{display:'flex',gap:24,alignItems:'flex-start',flexWrap:'wrap'}},
+          draftSection,
+          editorPanel
         )
-      )
-    ),
-    h('div',{style:{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:8,flexWrap:'wrap',gap:8}},
-      h('div',{style:{fontSize:12,color:'var(--color-text-secondary)'}},'Simulated cloth — over-under interlacing with thread thickness and spacing'),
-      dlBtn('Download simulation PNG',downloadSim)
-    ),
-    h('canvas',{ref:cvRef,style:{display:'block',borderRadius:4,border:'0.5px solid var(--color-border-tertiary)'}})
+      ),
+
+      // RIGHT: simulation (sticky on desktop)
+      h('div',{className:'loom-right'},simPanel)
+
+    )
   );
 }
 ReactDOM.createRoot(document.getElementById('root')).render(h(DigitalLoom));
