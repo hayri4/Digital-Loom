@@ -344,20 +344,21 @@ function DigitalLoom(){
 
   // ── Simulation panel ───────────────────────────────────────────
   const simPanel=h('div',null,
-    h('div',{style:{fontSize:13,fontWeight:500,color:'var(--color-text-primary)',marginBottom:10}},
+    h('div',{style:{fontSize:13,fontWeight:500,color:'var(--color-text-primary)',marginBottom:4}},
       'Simulated cloth'),
     h('div',{style:{fontSize:12,color:'var(--color-text-secondary)',marginBottom:10}},
       'Over-under interlacing with thread thickness and spacing applied'),
-    // Scale + download row
-    h('div',{style:{display:'flex',alignItems:'center',gap:12,marginBottom:12,flexWrap:'wrap'}},
-      h('span',{style:{fontSize:11,color:'var(--color-text-tertiary)',whiteSpace:'nowrap'}},'Scale'),
-      h('input',{type:'range',min:'0.25',max:'4',step:'0.25',value:scale,
-        onChange:ev=>setScale(parseFloat(ev.target.value)),
-        style:{flex:1,minWidth:100,maxWidth:180}}),
-      h('span',{style:{fontSize:12,fontFamily:'var(--font-mono)',color:'var(--color-text-primary)',minWidth:36,textAlign:'right'}},scaleLabel),
-      dlBtn('Download PNG',downloadSim)
-    ),
-    h('canvas',{ref:cvRef,style:{display:'block',borderRadius:4,border:'0.5px solid var(--color-border-tertiary)',maxWidth:'100%'}})
+    h('canvas',{ref:cvRef,style:{display:'block',borderRadius:4,border:'0.5px solid var(--color-border-tertiary)',maxWidth:'100%',marginBottom:10}}),
+    h('div',{style:{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap',marginTop:2}},
+      dlBtn('Download PNG',downloadSim),
+      h('div',{style:{display:'flex',alignItems:'center',gap:8,marginLeft:'auto'}},
+        h('span',{style:{fontSize:11,color:'var(--color-text-tertiary)',whiteSpace:'nowrap'}},'Scale'),
+        h('input',{type:'range',min:'0.25',max:'4',step:'0.25',value:scale,
+          onChange:ev=>setScale(parseFloat(ev.target.value)),
+          style:{width:90}}),
+        h('span',{style:{fontSize:12,fontFamily:'var(--font-mono)',color:'var(--color-text-primary)',minWidth:32,textAlign:'right'}},scaleLabel)
+      )
+    )
   );
 
   return h('div',{style:{fontFamily:'var(--font-sans)'}},
