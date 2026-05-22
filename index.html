@@ -69,7 +69,7 @@ const CANVAS_TP=[0,2,4,6,8,10],CANVAS_SP=[0,2,4,7,11],GAP_COL='#d4cfc8';
 const CS=15,SW=10,GAP=6,TARGET=384,BASE_TW=6;
 const INIT_SH=4,INIT_TR=4,INIT_WP=8,INIT_WR=8;
 const DEF_WARP='#9B6010',DEF_WEFT='#1A3E7A',DEF_T=3,DEF_S=0;
-const PALETTE=['#6B3A0A','#9B6010','#C89040','#E8C870','#0E2848','#1A3E7A','#3068B0','#6898CC','#3E1008','#7A2808','#B84820','#D88050','#083820','#0E6038','#2A9860','#68C098','#2A1040','#501880','#8840B8','#B878DC','#181818','#484848','#888888','#C8C8C8'];
+const PALETTE=['#1E2423','#3B3A36','#8F8980','#E8E0D2','#F7F2E7','#C9A76A','#D89B2B','#B85E33','#A33A36','#C76B83','#6C3D70','#243C7A','#3F6FA8','#7CB7D8','#9EAD96','#697B45','#4C8A54','#133832','#98ACAA','#9A8DA8','#7A5637','#5A3822','#E6B101','#E34234'];
 const SHAFT_HC=['#e8d8f0','#d0e8ff','#d8f0d8','#fff0d0','#f0d8d8','#d8f0f0','#f0ecd0','#e8e8e8','#f0d8f0','#d0f0e8','#f0f0d0','#d8e8f0','#f0d8e8','#e0f0d8','#d8d8f0','#f0e8d0'];
 
 function defS(sh,wp){const S=mat(sh,wp);for(let x=0;x<wp;x++)S[x%sh][x]=1;return S;}
@@ -159,11 +159,9 @@ function DigitalLoom(){
       setF(Array.from({length:wr},(_,y)=>Array.from({length:wp},(_,x)=>dF_fwd[y][x]?1:0)));
       setRWarpC(warpC[0]||DEF_WARP);setRWeftC(weftC[0]||DEF_WEFT);
     } else {
+      // Import deduced S/R/T — thread colors, thickness, spacing are preserved as-is
       const{S:dS,R:dR,T:dT,sh:dSh,tr:dTr}=deduced;
       setSh(dSh);setTr(dTr);setS(dS);setR(dR);setT(dT);
-      setWarpC(Array(wp).fill(rWarpC));setWeftC(Array(wr).fill(rWeftC));
-      setWarpTh(Array(wp).fill(DEF_T));setWeftTh(Array(wr).fill(DEF_T));
-      setWarpSp(Array(wp).fill(DEF_S));setWeftSp(Array(wr).fill(DEF_S));
       setSelType(null);setSelSet(new Set());
     }
     setMode(newMode);
@@ -352,7 +350,7 @@ function DigitalLoom(){
     modeToggle,
     h('div',{style:{fontSize:11,color:'var(--tt)',marginBottom:'1.25rem',lineHeight:1.6}},
       mode==='forward'?'Edit threading, tie-up, and treadling \u2192 simulation updates live. Toggle to deduce a draft from a drawn pattern.'
-                      :'Draw a cloth pattern \u2192 threading, tie-up, and treadling are deduced automatically. Toggle to refine the result.'
+                      :'Draw a cloth pattern \u2192 threading, tie-up, and treadling are deduced automatically. Toggle back to refine \u2014 thread colors and thickness are preserved.'
     ),
     // Full-width controls
     mode==='forward'?fwdControls:revControls,
