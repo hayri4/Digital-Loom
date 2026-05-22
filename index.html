@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Digital Loom</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+:root{
+  color-scheme:light dark;
+  --tp:#1a1a1a;--ts:#5c5c5c;--tt:#969696;
+  --bp:#ffffff;--bs:#f2f2f0;
+  --bp1:rgba(0,0,0,0.28);--bp2:rgba(0,0,0,0.18);--bp3:rgba(0,0,0,0.10);
+  --ff:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;
+  --fm:'SF Mono','Fira Code','Courier New',monospace;
+}
+@media(prefers-color-scheme:dark){:root{
+  --tp:#ebebeb;--ts:#a0a0a0;--tt:#606060;
+  --bp:#1c1c1c;--bs:#272727;
+  --bp1:rgba(255,255,255,0.28);--bp2:rgba(255,255,255,0.18);--bp3:rgba(255,255,255,0.10);
+}}
+body{font-family:var(--ff);background:var(--bp);color:var(--tp);line-height:1.5;min-height:100vh;}
+.page{max-width:1440px;margin:0 auto;padding:2.5rem 1.5rem 4rem;}
+.page-hd{display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:1.5rem;padding-bottom:1.25rem;border-bottom:0.5px solid var(--bp3);}
+.page-hd h1{font-size:22px;font-weight:500;letter-spacing:-0.01em;}
+.page-hd a{font-size:12px;color:var(--tt);text-decoration:none;white-space:nowrap;}
+.page-hd a:hover{color:var(--tp);}
+.page-ft{margin-top:3rem;padding-top:1.25rem;border-top:0.5px solid var(--bp3);font-size:12px;color:var(--tt);display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px;}
+.page-ft a{color:var(--ts);text-decoration:none;}.page-ft a:hover{text-decoration:underline;}
+input[type=number]::-webkit-inner-spin-button,input[type=number]::-webkit-outer-spin-button{-webkit-appearance:none;}
+input[type=number]{-moz-appearance:textfield;appearance:textfield;}
+input[type=range]{accent-color:var(--tp);cursor:pointer;}
+button:focus-visible,input:focus-visible{outline:2px solid var(--bp1);outline-offset:1px;}
+.loom-wrap{display:flex;flex-direction:column;gap:1.5rem;align-items:flex-start;}
+.loom-right{width:100%;}
+@media(min-width:960px){
+  .loom-wrap{flex-direction:row;gap:3rem;align-items:flex-start;}
+  .loom-left{flex-shrink:0;}
+  .loom-right{flex:1;min-width:280px;position:sticky;top:1.5rem;overflow-x:auto;}
+}
+.draw-grid{user-select:none;-webkit-user-select:none;}
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="page-hd">
+    <div>
+      <h1>Digital Loom</h1>
+      <p style="font-size:13px;color:var(--ts);margin-top:3px;">Open-source weaving draft generator</p>
+      <p style="font-size:11px;color:var(--tt);margin-top:3px;">Designed by Hayri Dortdivanlioglu, 2026 &middot; Developed on Claude Sonnet 4.6 based on Glassner (2002)</p>
+    </div>
+    <a href="https://github.com/YOUR-USERNAME/digital-loom" target="_blank">View on GitHub &rarr;</a>
+  </div>
+  <div id="root"></div>
+  <div class="page-ft">
+    <span>Digital Loom &copy; 2026 Hayri Dortdivanlioglu</span>
+    <a href="https://github.com/YOUR-USERNAME/digital-loom" target="_blank">GitHub</a>
+  </div>
+</div>
+<script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script>
+const {useState,useMemo,useEffect,useRef}=React;
+const h=React.createElement;
+const mat=(r,c,v=0)=>Array.from({length:r},()=>Array(c).fill(v));
+const clone2D=m=>m.map(r=>[...r]);
+const DARROW=String.fromCharCode(8595);
+const CANVAS_TP=[0,2,4,6,8,10],CANVAS_SP=[0,2,4,7,11],GAP_COL='#d4cfc8';
+const CS=15,SW=10,GAP=6,TARGET=384,BASE_TW=6;
+const INIT_SH=4,INIT_TR=4,INIT_WP=8,INIT_WR=8;
+const DEF_WARP='#9B6010',DEF_WEFT='#1A3E7A',DEF_T=3,DEF_S=0;
+const PALETTE=['#6B3A0A','#9B6010','#C89040','#E8C870','#0E2848','#1A3E7A','#3068B0','#6898CC','#3E1008','#7A2808','#B84820','#D88050','#083820','#0E6038','#2A9860','#68C098','#2A1040','#501880','#8840B8','#B878DC','#181818','#484848','#888888','#C8C8C8'];
+const SHAFT_HC=['#e8d8f0','#d0e8ff','#d8f0d8','#fff0d0','#f0d8d8','#d8f0f0','#f0ecd0','#e8e8e8','#f0d8f0','#d0f0e8','#f0f0d0','#d8e8f0','#f0d8e8','#e0f0d8','#d8d8f0','#f0e8d0'];
+
+function defS(sh,wp){const S=mat(sh,wp);for(let x=0;x<wp;x++)S[x%sh][x]=1;return S;}
+function defR(wr,tr){const R=mat(wr,tr);for(let y=0;y<wr;y++)R[y][y%tr]=1;return R;}
+function resizeS(S,oS,nS,wp){const N=mat(nS,wp);for(let x=0;x<wp;x++){let p=false;for(let s=0;s<Math.min(oS,nS);s++){if(S[s][x]){N[s][x]=1;p=true;break;}}if(!p)N[x%nS][x]=1;}return N;}
+function resizeR(R,oT,nT,wr){const N=mat(wr,nT);for(let y=0;y<wr;y++)for(let t=0;t<Math.min(oT,nT);t++)N[y][t]=R[y][t];return N;}
+function resizeT(T,oS,oT,nS,nT){const N=mat(nS,nT);for(let s=0;s<Math.min(oS,nS);s++)for(let t=0;t<Math.min(oT,nT);t++)N[s][t]=T[s][t];return N;}
+function resizeWp(S,oW,nW,sh){const N=mat(sh,nW);for(let s=0;s<sh;s++)for(let x=0;x<Math.min(oW,nW);x++)N[s][x]=S[s][x];for(let x=0;x<nW;x++){let ok=false;for(let s=0;s<sh;s++)if(N[s][x]){ok=true;break;}if(!ok)N[x%sh][x]=1;}return N;}
+function resizeWr(R,oW,nW,tr){const N=mat(nW,tr);for(let y=0;y<Math.min(oW,nW);y++)for(let t=0;t<tr;t++)N[y][t]=R[y][t];for(let y=oW;y<nW;y++)N[y][y%tr]=1;return N;}
+function resizeArr(a,n,def){if(n<=a.length)return a.slice(0,n);return[...a,...Array(n-a.length).fill(a[a.length-1]??def)];}
+function filterSel(set,max){return new Set([...set].filter(i=>i<max));}
+
+function weave(S,R,T,sh,tr,wp,wr,W,H){
+  const Sh=Array.from({length:wp},(_,x)=>{let b=0;for(let s=0;s<sh;s++)if(S[s][x])b|=1<<s;return b;});
+  const Th=Array.from({length:tr},(_,t)=>{let b=0;for(let s=0;s<sh;s++)if(T[s][t])b|=1<<s;return b;});
+  const Rh=Array.from({length:wr},(_,y)=>{let c=0;for(let t=0;t<tr;t++)if(R[y][t])c|=Th[t];return c;});
+  return Array.from({length:H},(_,y)=>{const rc=Rh[y%wr];return Array.from({length:W},(_,x)=>(Sh[x%wp]&rc)!==0);});
+}
+function deduceDraft(F,wp,wr){
+  const colMap=new Map(),rowMap=new Map(),colAssign=[],rowAssign=[];
+  let sh=0,tr=0;
+  for(let x=0;x<wp;x++){const k=Array.from({length:wr},(_,y)=>F[y][x]|0).join('');if(!colMap.has(k))colMap.set(k,sh++);colAssign.push(colMap.get(k));}
+  for(let y=0;y<wr;y++){const k=Array.from({length:wp},(_,x)=>F[y][x]|0).join('');if(!rowMap.has(k))rowMap.set(k,tr++);rowAssign.push(rowMap.get(k));}
+  const S=mat(sh,wp),R=mat(wr,tr),T=mat(sh,tr);
+  for(let x=0;x<wp;x++)S[colAssign[x]][x]=1;
+  for(let y=0;y<wr;y++)R[y][rowAssign[y]]=1;
+  for(let y=0;y<wr;y++)for(let x=0;x<wp;x++)if(F[y][x])T[colAssign[x]][rowAssign[y]]=1;
+  return{S,R,T,sh,tr,colAssign,rowAssign};
+}
+const PRESETS={
+  'Plain':(wr,wp)=>{const F=mat(wr,wp);for(let y=0;y<wr;y++)for(let x=0;x<wp;x++)F[y][x]=(x+y)%2===0?1:0;return F;},
+  '2/2 twill':(wr,wp)=>{const F=mat(wr,wp);for(let y=0;y<wr;y++)for(let x=0;x<wp;x++)F[y][x]=(x+y)%4<2?1:0;return F;},
+  '1/3 twill':(wr,wp)=>{const F=mat(wr,wp);for(let y=0;y<wr;y++)for(let x=0;x<wp;x++)F[y][x]=(x+y)%4===0?1:0;return F;},
+  'Basket':(wr,wp)=>{const F=mat(wr,wp);for(let y=0;y<wr;y++)for(let x=0;x<wp;x++)F[y][x]=(Math.floor(x/2)+Math.floor(y/2))%2===0?1:0;return F;},
+  'Houndstooth':(wr,wp)=>{const p=[[1,1,0,1],[1,1,0,0],[0,0,1,0],[1,0,1,1]];const F=mat(wr,wp);for(let y=0;y<wr;y++)for(let x=0;x<wp;x++)F[y][x]=p[y%4][x%4];return F;},
+  'Honeycomb':(wr,wp)=>{const p=[[1,0,0,0,1,1],[0,0,0,0,0,1],[0,0,0,0,0,1],[1,0,0,0,1,1],[1,1,0,1,1,0],[1,1,0,1,1,0]];const F=mat(wr,wp);for(let y=0;y<wr;y++)for(let x=0;x<wp;x++)F[y][x]=p[y%6][x%6];return F;},
+};
+
+function Grid({rows,cols,getVal,onClick,getColor}){
+  const cells=[];
+  for(let r=0;r<rows;r++)for(let c=0;c<cols;c++){const v=getVal(r,c);cells.push(h('div',{key:`${r},${c}`,onClick:()=>onClick&&onClick(r,c),style:{width:CS,height:CS,boxSizing:'border-box',background:getColor?getColor(r,c,v):(v?'var(--tp)':' var(--bs)'),border:'0.5px solid var(--bp3)',cursor:onClick?'pointer':'default'}}));}
+  return h('div',{style:{display:'grid',gridTemplateColumns:`repeat(${cols},${CS}px)`,gridTemplateRows:`repeat(${rows},${CS}px)`}},cells);
+}
+function Swatches({colors,selSet,onSelect,dir}){const isH=dir==='warp';return h('div',{style:{display:'flex',flexDirection:isH?'row':'column'}},colors.map((c,i)=>h('div',{key:i,onClick:()=>onSelect(i),style:{width:isH?CS:SW,height:isH?SW:CS,background:c,boxSizing:'border-box',cursor:'pointer',flexShrink:0,border:'0.5px solid var(--bp2)',outline:selSet.has(i)?'2px solid var(--tp)':'none',outlineOffset:'1px',position:'relative',zIndex:selSet.has(i)?1:0}})));}
+function Stepper({label,value,min,max,onChange}){
+  const [draft,setDraft]=useState(String(value));
+  useEffect(()=>setDraft(String(value)),[value]);
+  const commit=raw=>{const n=parseInt(raw,10);if(!isNaN(n))onChange(Math.min(max,Math.max(min,n)));else setDraft(String(value));};
+  const btn=(sym,dis,fn)=>h('button',{onClick:fn,disabled:dis,style:{width:22,height:26,border:'0.5px solid var(--bp1)',borderRadius:4,cursor:dis?'not-allowed':'pointer',background:'transparent',fontSize:14,color:'var(--tp)',display:'flex',alignItems:'center',justifyContent:'center',opacity:dis?0.3:1,padding:0,flexShrink:0}},sym);
+  return h('div',{style:{display:'flex',alignItems:'center',gap:4}},
+    h('span',{style:{fontSize:12,color:'var(--ts)',minWidth:84,flexShrink:0}},label),
+    btn('\u2212',value<=min,()=>onChange(Math.max(min,value-1))),
+    h('input',{type:'number',value:draft,min,max,onChange:ev=>setDraft(ev.target.value),onBlur:ev=>commit(ev.target.value),onKeyDown:ev=>{if(ev.key==='Enter')commit(ev.target.value);},style:{width:46,height:26,textAlign:'center',fontSize:13,fontWeight:500,border:'0.5px solid var(--bp1)',borderRadius:4,background:'var(--bp)',color:'var(--tp)',boxSizing:'border-box',padding:0}}),
+    btn('+',value>=max,()=>onChange(Math.min(max,value+1))),
+    h('span',{style:{fontSize:10,color:'var(--tt)',marginLeft:2}},`${min}\u2013${max}`)
+  );
+}
+function ThickPicker({shared,active,onPick}){return h('div',null,h('div',{style:{fontSize:11,color:'var(--ts)',marginBottom:5}},'Thickness'+(active&&shared===null?' \u2014 mixed':'')),h('div',{style:{display:'flex',gap:4}},[1,2,3,4,5].map(t=>{const on=shared===t;return h('button',{key:t,onClick:()=>active&&onPick(t),style:{width:32,height:32,border:`0.5px solid ${on?'var(--tp)':' var(--bp1)'}`,borderRadius:5,background:on?'var(--bs)':' transparent',cursor:active?'pointer':'default',opacity:active?1:0.28,display:'flex',alignItems:'center',justifyContent:'center',padding:0}},h('div',{style:{width:18,height:t*2+1,background:on?'var(--tp)':' var(--ts)',borderRadius:1}}));})));}
+function SpacingPicker({shared,active,onPick}){const GV=[1,4,7,11,15];return h('div',null,h('div',{style:{fontSize:11,color:'var(--ts)',marginBottom:5}},'Spacing'+(active&&shared===null?' \u2014 mixed':'')),h('div',{style:{display:'flex',gap:4}},[0,1,2,3,4].map(s=>{const on=shared===s;const col=on?'var(--tp)':' var(--ts)';return h('button',{key:s,onClick:()=>active&&onPick(s),style:{width:32,height:32,border:`0.5px solid ${on?'var(--tp)':' var(--bp1)'}`,borderRadius:5,background:on?'var(--bs)':' transparent',cursor:active?'pointer':'default',opacity:active?1:0.28,display:'flex',alignItems:'center',justifyContent:'center',padding:0}},h('div',{style:{display:'flex',alignItems:'center',gap:GV[s]}},h('div',{style:{width:4,height:12,background:col,borderRadius:1}}),h('div',{style:{width:4,height:12,background:col,borderRadius:1}}))));})));}
+
+function DigitalLoom(){
+  const [mode,setMode]=useState('forward');
+  const [scale,setScale]=useState(1);
+  const cvRef=useRef(null);
+  const [sh,setSh]=useState(INIT_SH);const [tr,setTr]=useState(INIT_TR);
+  const [wp,setWp]=useState(INIT_WP);const [wr,setWr]=useState(INIT_WR);
+  const [S,setS]=useState(()=>defS(INIT_SH,INIT_WP));
+  const [R,setR]=useState(()=>defR(INIT_WR,INIT_TR));
+  const [T,setT]=useState(()=>mat(INIT_SH,INIT_TR));
+  const [warpC,setWarpC]=useState(()=>Array(INIT_WP).fill(DEF_WARP));
+  const [weftC,setWeftC]=useState(()=>Array(INIT_WR).fill(DEF_WEFT));
+  const [warpTh,setWarpTh]=useState(()=>Array(INIT_WP).fill(DEF_T));
+  const [weftTh,setWeftTh]=useState(()=>Array(INIT_WR).fill(DEF_T));
+  const [warpSp,setWarpSp]=useState(()=>Array(INIT_WP).fill(DEF_S));
+  const [weftSp,setWeftSp]=useState(()=>Array(INIT_WR).fill(DEF_S));
+  const [selType,setSelType]=useState(null);const [selSet,setSelSet]=useState(new Set());
+  const [F,setF]=useState(()=>mat(INIT_WR,INIT_WP));
+  const [paintVal,setPaintVal]=useState(null);
+  const [rWarpC,setRWarpC]=useState(DEF_WARP);const [rWeftC,setRWeftC]=useState(DEF_WEFT);
+
+  const deduced=useMemo(()=>deduceDraft(F,wp,wr),[F,wp,wr]);
+  const dF_fwd=useMemo(()=>weave(S,R,T,sh,tr,wp,wr,wp,wr),[S,R,T,sh,tr,wp,wr]);
+
+  const switchMode=newMode=>{
+    if(mode===newMode)return;
+    if(newMode==='reverse'){
+      setF(Array.from({length:wr},(_,y)=>Array.from({length:wp},(_,x)=>dF_fwd[y][x]?1:0)));
+      setRWarpC(warpC[0]||DEF_WARP);setRWeftC(weftC[0]||DEF_WEFT);
+    } else {
+      const{S:dS,R:dR,T:dT,sh:dSh,tr:dTr}=deduced;
+      setSh(dSh);setTr(dTr);setS(dS);setR(dR);setT(dT);
+      setWarpC(Array(wp).fill(rWarpC));setWeftC(Array(wr).fill(rWeftC));
+      setWarpTh(Array(wp).fill(DEF_T));setWeftTh(Array(wr).fill(DEF_T));
+      setWarpSp(Array(wp).fill(DEF_S));setWeftSp(Array(wr).fill(DEF_S));
+      setSelType(null);setSelSet(new Set());
+    }
+    setMode(newMode);
+  };
+
+  const clrSel=(type,max)=>{if(selType===type){const f=filterSel(selSet,max);if(f.size===0){setSelType(null);setSelSet(new Set());}else setSelSet(f);}};
+  const chSh=v=>{setS(p=>resizeS(p,sh,v,wp));setT(p=>resizeT(p,sh,tr,v,tr));setSh(v);};
+  const chTr=v=>{setR(p=>resizeR(p,tr,v,wr));setT(p=>resizeT(p,sh,tr,sh,v));setTr(v);};
+  const chWp=v=>{setS(p=>resizeWp(p,wp,v,sh));setWarpC(p=>resizeArr(p,v,DEF_WARP));setWarpTh(p=>resizeArr(p,v,DEF_T));setWarpSp(p=>resizeArr(p,v,DEF_S));setF(p=>{const n=mat(wr,v);for(let y=0;y<wr;y++)for(let x=0;x<Math.min(wp,v);x++)n[y][x]=p[y][x];return n;});clrSel('warp',v);setWp(v);};
+  const chWr=v=>{setR(p=>resizeWr(p,wr,v,tr));setWeftC(p=>resizeArr(p,v,DEF_WEFT));setWeftTh(p=>resizeArr(p,v,DEF_T));setWeftSp(p=>resizeArr(p,v,DEF_S));setF(p=>{const n=mat(v,wp);for(let y=0;y<Math.min(wr,v);y++)for(let x=0;x<wp;x++)n[y][x]=p[y][x];return n;});clrSel('weft',v);setWr(v);};
+  const clkS=(s,x)=>setS(p=>{const n=clone2D(p);for(let i=0;i<sh;i++)n[i][x]=0;n[s][x]=1;return n;});
+  const clkR=(y,t)=>setR(p=>{const n=clone2D(p);n[y][t]^=1;return n;});
+  const clkT=(s,t)=>setT(p=>{const n=clone2D(p);n[s][t]^=1;return n;});
+  const clickSwatch=(type,idx)=>{if(selType&&selType!==type){setSelType(type);setSelSet(new Set([idx]));return;}const next=new Set(selSet);if(next.has(idx))next.delete(idx);else next.add(idx);if(next.size===0){setSelType(null);setSelSet(new Set());}else{setSelType(type);setSelSet(next);}};
+  const applyProp=(setter,val)=>{if(!selSet.size)return;setter(p=>{const n=[...p];selSet.forEach(i=>n[i]=val);return n;});};
+  const hasSel=selSet.size>0;
+  const sortedIdx=[...selSet].sort((a,b)=>a-b);
+  const selColors=sortedIdx.map(i=>selType==='warp'?warpC[i]:weftC[i]);
+  const selThicks=sortedIdx.map(i=>selType==='warp'?warpTh[i]:weftTh[i]);
+  const selSpaces=sortedIdx.map(i=>selType==='warp'?warpSp[i]:weftSp[i]);
+  const sharedColor=selColors.length>0&&selColors.every(c=>c===selColors[0])?selColors[0]:null;
+  const sharedThick=selThicks.length>0&&selThicks.every(t=>t===selThicks[0])?selThicks[0]:null;
+  const sharedSpace=selSpaces.length>0&&selSpaces.every(s=>s===selSpaces[0])?selSpaces[0]:null;
+  const setCell=(y,x,val)=>setF(p=>{const n=p.map(r=>[...r]);n[y][x]=val;return n;});
+
+  useEffect(()=>{
+    const cv=cvRef.current;if(!cv)return;
+    const sc=scale;
+    let curS=S,curR=R,curT=T,curSh=sh,curTr=tr;
+    let getWC=(x)=>warpC[x%wp],getFC=(y)=>weftC[y%wr];
+    let tW,gW,tH,gH;
+    if(mode==='forward'){
+      tW=i=>Math.max(1,Math.round(CANVAS_TP[warpTh[i%wp]]*sc));gW=i=>Math.round(CANVAS_SP[warpSp[i%wp]]*sc);
+      tH=i=>Math.max(1,Math.round(CANVAS_TP[weftTh[i%wr]]*sc));gH=i=>Math.round(CANVAS_SP[weftSp[i%wr]]*sc);
+    } else {
+      const{S:dS,R:dR,T:dT,sh:dSh,tr:dTr}=deduced;
+      curS=dS;curR=dR;curT=dT;curSh=dSh;curTr=dTr;
+      getWC=()=>rWarpC;getFC=()=>rWeftC;
+      const tw=Math.max(2,Math.round(BASE_TW*sc)),gw=Math.max(1,Math.round(sc));
+      tW=()=>tw;gW=()=>gw;tH=()=>tw;gH=()=>gw;
+    }
+    cv.width=TARGET;cv.height=TARGET;
+    let cW=0,xTot=0;while(xTot<TARGET&&cW<2000){xTot+=tW(cW)+gW(cW);cW++;}
+    let cH=0,yTot=0;while(yTot<TARGET&&cH<2000){yTot+=tH(cH)+gH(cH);cH++;}
+    const fab=weave(curS,curR,curT,curSh,curTr,wp,wr,cW,cH);
+    const xs=[],xw=[];let xc=0;for(let x=0;x<cW;x++){xs.push(xc);const tw=tW(x)+gW(x);xw.push(tw);xc+=tw;}
+    const ys=[],yh=[];let yc=0;for(let y=0;y<cH;y++){ys.push(yc);const th=tH(y)+gH(y);yh.push(th);yc+=th;}
+    const ctx=cv.getContext('2d');
+    ctx.fillStyle=GAP_COL;ctx.fillRect(0,0,TARGET,TARGET);
+    for(let y=0;y<cH;y++){if(ys[y]>=TARGET)break;for(let x=0;x<cW;x++){if(xs[x]>=TARGET)break;const wo=fab[y][x],wC=getWC(x),wfC=getFC(y);const cellW=Math.min(xw[x],TARGET-xs[x]),cellH=Math.min(yh[y],TARGET-ys[y]);const twv=Math.max(1,Math.min(tW(x),cellW-2)),thv=Math.max(1,Math.min(tH(y),cellH-2));const ox=(xw[x]-twv)>>1,oy=(yh[y]-thv)>>1;if(wo){ctx.fillStyle=wfC;ctx.fillRect(xs[x],ys[y]+oy,cellW,thv);ctx.fillStyle=wC;ctx.fillRect(xs[x]+ox,ys[y],twv,cellH);}else{ctx.fillStyle=wC;ctx.fillRect(xs[x]+ox,ys[y],twv,cellH);ctx.fillStyle=wfC;ctx.fillRect(xs[x],ys[y]+oy,cellW,thv);}}}
+  },[mode,S,R,T,sh,tr,wp,wr,warpC,weftC,warpTh,weftTh,warpSp,weftSp,deduced,rWarpC,rWeftC,scale]);
+
+  const downloadSim=()=>{const cv=cvRef.current;if(!cv)return;const a=document.createElement('a');a.href=cv.toDataURL();a.download='weave-sim.png';a.click();};
+
+  const smBtn=(txt,fn,dim)=>h('button',{onClick:fn,style:{padding:'4px 10px',fontSize:11,borderRadius:5,cursor:'pointer',background:'transparent',color:'var(--ts)',border:`0.5px solid ${dim?'var(--bp2)':'var(--bp1)'}`,textAlign:'left'}},txt);
+  const dlBtn=(label,fn)=>h('button',{onClick:fn,style:{padding:'5px 12px',fontSize:12,borderRadius:6,cursor:'pointer',background:'transparent',border:'0.5px solid var(--bp1)',color:'var(--ts)',display:'flex',alignItems:'center',gap:5,flexShrink:0}},DARROW+'\u00a0'+label);
+  const divider=h('div',{style:{borderTop:'0.5px solid var(--bp3)',margin:'8px 0'}});
+  const lbl=(txt,w)=>h('div',{style:{width:w,fontSize:11,color:'var(--ts)',height:16,display:'flex',alignItems:'flex-end'}},txt);
+  const{S:dS,R:dR,T:dT,sh:dSh,tr:dTr,colAssign,rowAssign}=deduced;
+  const MAX_CHIPS=14;
+
+  // ── Mode toggle ───────────────────────────────────────────
+  const modeToggle=h('div',{style:{display:'inline-flex',border:'0.5px solid var(--bp1)',borderRadius:8,overflow:'hidden',marginBottom:'1.25rem'}},
+    ['forward','reverse'].map((m,i)=>{const active=mode===m;const labels=['Pattern generator','Draft deduction'];return h('button',{key:m,onClick:()=>switchMode(m),style:{padding:'7px 20px',fontSize:12,fontWeight:active?500:400,background:active?'var(--tp)':'transparent',color:active?'var(--bp)':'var(--ts)',border:'none',cursor:'pointer',borderLeft:i>0?'0.5px solid var(--bp1)':'none'}},labels[i]);})
+  );
+
+  // ── Simulation panel (shared right column) ────────────────
+  const simPanel=h('div',null,
+    h('div',{style:{fontSize:13,fontWeight:500,color:'var(--tp)',marginBottom:4}},'Simulated cloth'),
+    h('div',{style:{fontSize:12,color:'var(--ts)',marginBottom:10}},
+      mode==='forward'?'Over-under interlacing with thread thickness and spacing applied':'Verifies deduced draft reproduces the drawn pattern'
+    ),
+    h('div',{style:{width:TARGET+'px',height:TARGET+'px',overflow:'hidden',flexShrink:0,borderRadius:4,border:'0.5px solid var(--bp3)',background:GAP_COL,marginBottom:10}},
+      h('canvas',{ref:cvRef,style:{display:'block'}})
+    ),
+    h('div',{style:{display:'flex',alignItems:'center',gap:10,width:TARGET+'px'}},
+      h('div',{style:{display:'flex',alignItems:'center',gap:8,flex:1,minWidth:0}},
+        h('span',{style:{fontSize:11,color:'var(--tt)',whiteSpace:'nowrap'}},'Scale'),
+        h('input',{type:'range',min:'0.25',max:'4',step:'0.25',value:scale,onChange:ev=>setScale(parseFloat(ev.target.value)),style:{flex:1}}),
+        h('span',{style:{fontSize:12,fontFamily:'var(--fm)',color:'var(--tp)',minWidth:32,textAlign:'right'}},`${scale}\u00D7`)
+      ),
+      dlBtn('Download PNG',downloadSim)
+    )
+  );
+
+  // ── Forward: controls (full width above left column) ──────
+  const fwdControls=h('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'8px 10px',marginBottom:'1.5rem',padding:'12px 14px',border:'0.5px solid var(--bp3)',borderRadius:8,background:'var(--bs)'}},
+    h(Stepper,{label:'Shafts',value:sh,min:2,max:16,onChange:chSh}),
+    h(Stepper,{label:'Warp repeat',value:wp,min:2,max:32,onChange:chWp}),
+    h(Stepper,{label:'Treadles',value:tr,min:2,max:16,onChange:chTr}),
+    h(Stepper,{label:'Weft repeat',value:wr,min:2,max:32,onChange:chWr}),
+    h('div',{style:{gridColumn:'1/-1',display:'flex',gap:8,paddingTop:4,borderTop:'0.5px solid var(--bp3)',marginTop:2,flexWrap:'wrap'}},
+      smBtn('Clear tie-up',()=>setT(mat(sh,tr)),true),
+      smBtn('Reset all',()=>{setS(defS(sh,wp));setR(defR(wr,tr));setT(mat(sh,tr));},true)
+    )
+  );
+
+  // ── Forward: draft + thread editor (left column content) ──
+  const fwdDraft=h('div',{style:{display:'flex',gap:24,alignItems:'flex-start',flexWrap:'wrap'}},
+    // Draft grids
+    h('div',{style:{display:'flex',flexDirection:'column',gap:0}},
+      h('div',{style:{display:'flex',gap:GAP,marginBottom:4}},
+        h('div',null,h('div',{style:{fontSize:10,color:'var(--tt)',marginBottom:3}},'warp threads \u2014 click to select'),h(Swatches,{colors:warpC,selSet:selType==='warp'?selSet:new Set(),onSelect:i=>clickSwatch('warp',i),dir:'warp'})),
+        h('div',{style:{width:tr*CS}})
+      ),
+      h('div',{style:{display:'flex',gap:GAP,marginBottom:2}},lbl(`threading \u00B7 ${sh} shafts`,wp*CS),lbl(`tie-up \u00B7 ${tr} treadles`,tr*CS)),
+      h('div',{style:{display:'flex',gap:GAP,marginBottom:GAP}},h(Grid,{rows:sh,cols:wp,getVal:(s,x)=>S[s][x],onClick:clkS}),h(Grid,{rows:sh,cols:tr,getVal:(s,t)=>T[s][t],onClick:clkT})),
+      h('div',{style:{display:'flex',gap:GAP,marginBottom:2}},lbl('drawdown',wp*CS),lbl('treadling \u00B7 multi-pick',tr*CS)),
+      h('div',{style:{display:'flex',gap:GAP,alignItems:'flex-start'}},
+        h(Grid,{rows:wr,cols:wp,getVal:(y,x)=>dF_fwd[y][x],getColor:(y,x,v)=>v?warpC[x]:weftC[y]}),
+        h(Grid,{rows:wr,cols:tr,getVal:(y,t)=>R[y][t],onClick:clkR}),
+        h(Swatches,{colors:weftC,selSet:selType==='weft'?selSet:new Set(),onSelect:i=>clickSwatch('weft',i),dir:'weft'})
+      ),
+      h('div',{style:{fontSize:10,color:'var(--tt)',marginTop:3}},'\u2191 weft threads \u2014 click to select'),
+      h('div',{style:{fontSize:11,color:'var(--tt)',marginTop:5,lineHeight:1.6}},'Threading: one per column \u00B7 Treadling: multi-pick \u00B7 Tie-up: toggle freely'),
+      h('div',{style:{marginTop:12}},dlBtn('Download draft PNG',()=>{}))
+    ),
+    // Thread editor
+    h('div',{style:{width:186,flexShrink:0}},
+      h('div',{style:{marginBottom:8}},
+        h('div',{style:{fontSize:12,fontWeight:500,color:'var(--tp)',marginBottom:2}},hasSel?`${selSet.size} ${selType} thread${selSet.size>1?'s':''} selected`:'Thread editor'),
+        hasSel?h('div',{style:{display:'flex',flexWrap:'wrap',gap:3}},selColors.slice(0,MAX_CHIPS).map((c,i)=>h('div',{key:i,style:{width:13,height:13,background:c,borderRadius:2,border:'0.5px solid var(--bp2)'}})),selColors.length>MAX_CHIPS&&h('span',{style:{fontSize:10,color:'var(--tt)',alignSelf:'center'}},`+${selColors.length-MAX_CHIPS}`)):h('div',{style:{fontSize:11,color:'var(--tt)',lineHeight:1.6}},'Click thread swatches to select.')
+      ),
+      hasSel&&h('div',{style:{marginBottom:6}},sharedColor?h('div',{style:{display:'flex',alignItems:'center',gap:6,padding:'4px 7px',marginBottom:6,border:'0.5px solid var(--bp3)',borderRadius:5,background:'var(--bs)'}},h('div',{style:{width:14,height:14,background:sharedColor,borderRadius:2,flexShrink:0,border:'0.5px solid var(--bp2)'}}),h('span',{style:{fontSize:11,fontFamily:'var(--fm)',color:'var(--ts)'}},sharedColor.toUpperCase())):h('div',{style:{fontSize:11,color:'var(--tt)',fontStyle:'italic',marginBottom:6}},'Mixed colors')),
+      h('div',{style:{fontSize:11,color:'var(--ts)',marginBottom:5}},'Color'),
+      h('div',{style:{display:'grid',gridTemplateColumns:'repeat(6,24px)',gap:3,marginBottom:8,opacity:hasSel?1:0.28}},PALETTE.map(c=>h('div',{key:c,onClick:()=>hasSel&&applyProp(selType==='warp'?setWarpC:setWeftC,c),style:{width:24,height:24,background:c,borderRadius:3,boxSizing:'border-box',cursor:hasSel?'pointer':'default',border:c===sharedColor?'2.5px solid var(--tp)':'2.5px solid transparent'}}))),
+      divider,
+      h('div',{style:{opacity:hasSel?1:0.28,marginBottom:8}},h(ThickPicker,{shared:sharedThick,active:hasSel,onPick:t=>applyProp(selType==='warp'?setWarpTh:setWeftTh,t)})),
+      divider,
+      h('div',{style:{opacity:hasSel?1:0.28,marginBottom:8}},h(SpacingPicker,{shared:sharedSpace,active:hasSel,onPick:s=>applyProp(selType==='warp'?setWarpSp:setWeftSp,s)})),
+      hasSel&&h('div',null,divider,h('div',{style:{display:'flex',flexDirection:'column',gap:5}},
+        smBtn(`Select all ${selType} threads`,()=>{const len=selType==='warp'?wp:wr;setSelSet(new Set(Array.from({length:len},(_,i)=>i)));},false),
+        smBtn('Deselect all',()=>{setSelType(null);setSelSet(new Set());},true)
+      ))
+    )
+  );
+
+  // ── Reverse: controls (full width above left column) ──────
+  const revControls=h('div',{onMouseUp:()=>setPaintVal(null),onMouseLeave:()=>setPaintVal(null)},
+    h('div',{style:{display:'flex',gap:12,alignItems:'center',flexWrap:'wrap',marginBottom:'1rem',padding:'10px 12px',border:'0.5px solid var(--bp3)',borderRadius:8,background:'var(--bs)'}},
+      h(Stepper,{label:'Warp threads',value:wp,min:2,max:24,onChange:chWp}),
+      h(Stepper,{label:'Weft rows',value:wr,min:2,max:24,onChange:chWr}),
+      h('button',{onClick:()=>setF(mat(wr,wp)),style:{padding:'3px 10px',fontSize:11,borderRadius:5,cursor:'pointer',background:'transparent',border:'0.5px solid var(--bp2)',color:'var(--ts)'}},'Clear'),
+      h('div',{style:{display:'flex',alignItems:'center',gap:4}},h('span',{style:{fontSize:11,color:'var(--tt)'}},'Warp'),PALETTE.slice(0,8).map(c=>h('div',{key:c,onClick:()=>setRWarpC(c),style:{width:16,height:16,background:c,borderRadius:2,cursor:'pointer',border:c===rWarpC?'2px solid var(--tp)':'2px solid transparent'}}))),
+      h('div',{style:{display:'flex',alignItems:'center',gap:4}},h('span',{style:{fontSize:11,color:'var(--tt)'}},'Weft'),PALETTE.slice(4,12).map(c=>h('div',{key:c,onClick:()=>setRWeftC(c),style:{width:16,height:16,background:c,borderRadius:2,cursor:'pointer',border:c===rWeftC?'2px solid var(--tp)':'2px solid transparent'}})))
+    ),
+    h('div',{style:{display:'flex',gap:5,flexWrap:'wrap',marginBottom:'1rem',alignItems:'center'}},
+      h('span',{style:{fontSize:11,color:'var(--tt)',marginRight:2}},'Preset:'),
+      Object.keys(PRESETS).map(name=>h('button',{key:name,onClick:()=>setF(PRESETS[name](wr,wp)),style:{padding:'3px 9px',fontSize:11,borderRadius:5,cursor:'pointer',background:'transparent',border:'0.5px solid var(--bp2)',color:'var(--ts)'}},name))
+    )
+  );
+
+  // ── Reverse: drawdown + deduced draft (left column content)
+  const revDraft=h('div',{className:'draw-grid',onMouseUp:()=>setPaintVal(null),onMouseLeave:()=>setPaintVal(null),style:{display:'flex',gap:32,alignItems:'flex-start',flexWrap:'wrap'}},
+    h('div',{style:{flexShrink:0}},
+      h('div',{style:{fontSize:12,fontWeight:500,color:'var(--tp)',marginBottom:3}},'Draw cloth pattern'),
+      h('div',{style:{fontSize:11,color:'var(--tt)',marginBottom:8}},'\u25A0 = warp on top \u00B7 \u25A1 = weft on top \u00B7 click or drag'),
+      h('div',{style:{display:'flex',marginBottom:1}},Array.from({length:wp},(_,x)=>h('div',{key:x,style:{width:CS,textAlign:'center',fontSize:8,color:'var(--ts)',background:SHAFT_HC[colAssign[x]%16],borderRadius:'2px 2px 0 0'}},(colAssign[x]+1)))),
+      h('div',{style:{display:'flex',alignItems:'flex-start'}},
+        h('div',{style:{display:'grid',gridTemplateColumns:`repeat(${wp},${CS}px)`,gridTemplateRows:`repeat(${wr},${CS}px)`,cursor:'crosshair'}},
+          Array.from({length:wr},(_,y)=>Array.from({length:wp},(_,x)=>h('div',{key:`${y},${x}`,onMouseDown:e=>{e.preventDefault();const v=1-F[y][x];setPaintVal(v);setCell(y,x,v);},onMouseEnter:e=>{if(paintVal!==null&&e.buttons>0)setCell(y,x,paintVal);},style:{width:CS,height:CS,boxSizing:'border-box',background:F[y][x]?'var(--tp)':'var(--bp)',border:'0.5px solid var(--bp3)',cursor:'crosshair'}}))).flat()
+        ),
+        h('div',{style:{display:'flex',flexDirection:'column',marginLeft:2}},Array.from({length:wr},(_,y)=>h('div',{key:y,style:{height:CS,display:'flex',alignItems:'center',justifyContent:'center',fontSize:8,color:'var(--ts)',background:SHAFT_HC[(rowAssign[y]+8)%16],borderRadius:'0 2px 2px 0',minWidth:14}},(rowAssign[y]+1))))
+      ),
+      h('div',{style:{marginTop:8,padding:'6px 10px',borderRadius:6,background:'var(--bs)',border:'0.5px solid var(--bp3)',display:'inline-block'}},
+        h('span',{style:{fontSize:12,fontWeight:500}},`${dSh} shaft${dSh!==1?'s':''} \u00B7 ${dTr} treadle${dTr!==1?'s':''} required`),
+        h('div',{style:{fontSize:10,color:'var(--tt)',marginTop:1}},'Column color = shaft \u00B7 Row color = treadle')
+      ),
+      h('div',{style:{marginTop:10}},dlBtn('Download draft PNG',()=>{}))
+    ),
+    h('div',{style:{flexShrink:0}},
+      h('div',{style:{fontSize:12,fontWeight:500,color:'var(--tp)',marginBottom:10}},'Deduced draft'),
+      h('div',{style:{display:'flex',gap:8,alignItems:'flex-start',marginBottom:8}},
+        h('div',null,h('div',{style:{fontSize:11,color:'var(--ts)',marginBottom:3}},`threading (S) \u00B7 ${dSh} shafts`),h(Grid,{rows:dSh,cols:wp,getVal:(s,x)=>dS[s][x]})),
+        h('div',null,h('div',{style:{fontSize:11,color:'var(--ts)',marginBottom:3}},'tie-up (T)'),h(Grid,{rows:dSh,cols:dTr,getVal:(s,t)=>dT[s][t]}))
+      ),
+      h('div',null,h('div',{style:{fontSize:11,color:'var(--ts)',marginBottom:3}},`treadling (R) \u00B7 ${dTr} treadles`),h(Grid,{rows:wr,cols:dTr,getVal:(y,t)=>dR[y][t]})),
+      h('div',{style:{marginTop:8,fontSize:10,color:'var(--tt)',lineHeight:1.6,maxWidth:240,padding:'7px 10px',background:'var(--bs)',borderRadius:6,border:'0.5px solid var(--bp3)'}},
+        'Unique columns \u2192 shafts \u00B7 unique rows \u2192 treadles. Switch to Pattern generator to refine.'
+      )
+    )
+  );
+
+  // ── Final render ──────────────────────────────────────────
+  return h('div',null,
+    modeToggle,
+    h('div',{style:{fontSize:11,color:'var(--tt)',marginBottom:'1.25rem',lineHeight:1.6}},
+      mode==='forward'?'Edit threading, tie-up, and treadling \u2192 simulation updates live. Toggle to deduce a draft from a drawn pattern.'
+                      :'Draw a cloth pattern \u2192 threading, tie-up, and treadling are deduced automatically. Toggle to refine the result.'
+    ),
+    // Full-width controls
+    mode==='forward'?fwdControls:revControls,
+    // Two-column: left = draft content, right = simulation (sticky on desktop)
+    h('div',{className:'loom-wrap'},
+      h('div',{className:'loom-left'},mode==='forward'?fwdDraft:revDraft),
+      h('div',{className:'loom-right'},simPanel)
+    )
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(h(DigitalLoom));
+</script>
