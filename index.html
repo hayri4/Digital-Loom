@@ -149,6 +149,8 @@ function DigitalLoom(){
   const [F,setF]=useState(()=>mat(INIT_WR,INIT_WP));
   const [paintVal,setPaintVal]=useState(null);
   const [rWarpC,setRWarpC]=useState(DEF_WARP);const [rWeftC,setRWeftC]=useState(DEF_WEFT);
+  const [hexInput,setHexInput]=useState('');
+  const hexFocused=useRef(false);
 
   const deduced=useMemo(()=>deduceDraft(F,wp,wr),[F,wp,wr]);
   const dF_fwd=useMemo(()=>weave(S,R,T,sh,tr,wp,wr,wp,wr),[S,R,T,sh,tr,wp,wr]);
@@ -213,6 +215,10 @@ function DigitalLoom(){
     ctx.fillStyle=GAP_COL;ctx.fillRect(0,0,TARGET,TARGET);
     for(let y=0;y<cH;y++){if(ys[y]>=TARGET)break;for(let x=0;x<cW;x++){if(xs[x]>=TARGET)break;const wo=fab[y][x],wC=getWC(x),wfC=getFC(y);const cellW=Math.min(xw[x],TARGET-xs[x]),cellH=Math.min(yh[y],TARGET-ys[y]);const twv=Math.max(1,Math.min(tW(x),cellW-2)),thv=Math.max(1,Math.min(tH(y),cellH-2));const ox=(xw[x]-twv)>>1,oy=(yh[y]-thv)>>1;if(wo){ctx.fillStyle=wfC;ctx.fillRect(xs[x],ys[y]+oy,cellW,thv);ctx.fillStyle=wC;ctx.fillRect(xs[x]+ox,ys[y],twv,cellH);}else{ctx.fillStyle=wC;ctx.fillRect(xs[x]+ox,ys[y],twv,cellH);ctx.fillStyle=wfC;ctx.fillRect(xs[x],ys[y]+oy,cellW,thv);}}}
   },[mode,S,R,T,sh,tr,wp,wr,warpC,weftC,warpTh,weftTh,warpSp,weftSp,deduced,rWarpC,rWeftC,scale]);
+
+  // Sync hex input display when color changes from outside (palette click, mode switch)
+  // but not while the user is actively typing in the field
+  useEffect(()=>{if(!hexFocused.current)setHexInput(sharedColor||'');},[sharedColor]);
 
   const downloadSim=()=>{const cv=cvRef.current;if(!cv)return;const a=document.createElement('a');a.href=cv.toDataURL();a.download='weave-sim.png';a.click();};
 
@@ -285,7 +291,29 @@ function DigitalLoom(){
         h('div',{style:{fontSize:12,fontWeight:500,color:'var(--tp)',marginBottom:2}},hasSel?`${selSet.size} ${selType} thread${selSet.size>1?'s':''} selected`:'Thread editor'),
         hasSel?h('div',{style:{display:'flex',flexWrap:'wrap',gap:3}},selColors.slice(0,MAX_CHIPS).map((c,i)=>h('div',{key:i,style:{width:13,height:13,background:c,borderRadius:2,border:'0.5px solid var(--bp2)'}})),selColors.length>MAX_CHIPS&&h('span',{style:{fontSize:10,color:'var(--tt)',alignSelf:'center'}},`+${selColors.length-MAX_CHIPS}`)):h('div',{style:{fontSize:11,color:'var(--tt)',lineHeight:1.6}},'Click thread swatches to select.')
       ),
-      hasSel&&h('div',{style:{marginBottom:6}},sharedColor?h('div',{style:{display:'flex',alignItems:'center',gap:6,padding:'4px 7px',marginBottom:6,border:'0.5px solid var(--bp3)',borderRadius:5,background:'var(--bs)'}},h('div',{style:{width:14,height:14,background:sharedColor,borderRadius:2,flexShrink:0,border:'0.5px solid var(--bp2)'}}),h('span',{style:{fontSize:11,fontFamily:'var(--fm)',color:'var(--ts)'}},sharedColor.toUpperCase())):h('div',{style:{fontSize:11,color:'var(--tt)',fontStyle:'italic',marginBottom:6}},'Mixed colors')),
+      hasSel&&h('div',{style:{marginBottom:6}},
+        h('div',{style:{display:'flex',alignItems:'center',gap:6,padding:'4px 7px',marginBottom:6,border:'0.5px solid var(--bp3)',borderRadius:5,background:'var(--bs)'}},
+          h('div',{style:{width:14,height:14,background:/^#[0-9A-Fa-f]{6}$/.test(hexInput)?hexInput:(sharedColor||'transparent'),borderRadius:2,flexShrink:0,border:'0.5px solid var(--bp2)'}}),
+          h('input',{
+            type:'text',value:hexInput,maxLength:7,
+            placeholder:sharedColor?'':'mixed',
+            onFocus:()=>hexFocused.current=true,
+            onBlur:()=>{
+              hexFocused.current=false;
+              const v=hexInput.trim();
+              if(/^#[0-9A-Fa-f]{6}$/.test(v))applyProp(selType==='warp'?setWarpC:setWeftC,v.toUpperCase());
+              else setHexInput(sharedColor||'');
+            },
+            onChange:ev=>{
+              const v=ev.target.value;
+              setHexInput(v);
+              if(/^#[0-9A-Fa-f]{6}$/.test(v))applyProp(selType==='warp'?setWarpC:setWeftC,v.toUpperCase());
+            },
+            onKeyDown:ev=>{if(ev.key==='Enter'){const v=hexInput.trim();if(/^#[0-9A-Fa-f]{6}$/.test(v)){applyProp(selType==='warp'?setWarpC:setWeftC,v.toUpperCase());ev.target.blur();}}},
+            style:{fontSize:11,fontFamily:'var(--fm)',color:'var(--ts)',background:'transparent',border:'none',outline:'none',width:72,padding:0,letterSpacing:'0.03em'}
+          })
+        )
+      ),
       h('div',{style:{fontSize:11,color:'var(--ts)',marginBottom:5}},'Color'),
       h('div',{style:{display:'grid',gridTemplateColumns:'repeat(6,24px)',gap:3,marginBottom:8,opacity:hasSel?1:0.28}},PALETTE.map(c=>h('div',{key:c,onClick:()=>hasSel&&applyProp(selType==='warp'?setWarpC:setWeftC,c),style:{width:24,height:24,background:c,borderRadius:3,boxSizing:'border-box',cursor:hasSel?'pointer':'default',border:c===sharedColor?'2.5px solid var(--tp)':'2.5px solid transparent'}}))),
       divider,
