@@ -49,12 +49,12 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--bp1);outline-of
       <p style="font-size:13px;color:var(--ts);margin-top:3px;">Open-source weaving draft generator</p>
       <p style="font-size:11px;color:var(--tt);margin-top:3px;">Designed by Hayri Dortdivanlioglu, 2026 &middot; Developed on Claude Sonnet 4.6 based on Glassner (2002)</p>
     </div>
-    <a href="https://github.com/hayri4/Digital-Loom" target="_blank">View on GitHub &rarr;</a>
+    <a href="https://github.com/hayri4/digital-loom" target="_blank">View on GitHub &rarr;</a>
   </div>
   <div id="root"></div>
   <div class="page-ft">
     <span>Digital Loom &copy; 2026 Hayri Dortdivanlioglu</span>
-    <a href="https://github.com/hayri4/Digital-Loom" target="_blank">GitHub</a>
+    <a href="https://github.com/hayri4/digital-loom" target="_blank">GitHub</a>
   </div>
 </div>
 <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
@@ -222,6 +222,137 @@ function DigitalLoom(){
 
   const downloadSim=()=>{const cv=cvRef.current;if(!cv)return;const a=document.createElement('a');a.href=cv.toDataURL();a.download='weave-sim.png';a.click();};
 
+  const downloadDraft=()=>{    const curS=mode==='forward'?S:deduced.S;
+    const curR=mode==='forward'?R:deduced.R;
+    const curT=mode==='forward'?T:deduced.T;
+    const curSh=mode==='forward'?sh:deduced.sh;
+    const curTr=mode==='forward'?tr:deduced.tr;
+    const curWarpC=mode==='forward'?warpC:Array(wp).fill(rWarpC);
+    const curWeftC=mode==='forward'?weftC:Array(wr).fill(rWeftC);
+    const cell=24,gap=1,pad=16,labelH=18;
+    const gridW=(wp+1+curTr)*cell,gridH=(curSh+1+wr)*cell;
+    const W=pad+gridW+pad,H=pad+labelH+gridH+pad;
+    const oc=document.createElement('canvas');oc.width=W;oc.height=H;
+    const ctx=oc.getContext('2d');
+    ctx.fillStyle='#ffffff';ctx.fillRect(0,0,W,H);
+    // Labels
+    ctx.fillStyle='#666';ctx.font='11px sans-serif';
+    ctx.fillText('Threading',pad,pad+12);
+    ctx.fillText('Tie-up',pad+(wp+1)*cell,pad+12);
+    ctx.fillText('Drawdown',pad,pad+labelH+(curSh+1)*cell+12);
+    ctx.fillText('Treadling',pad+(wp+1)*cell,pad+labelH+(curSh+1)*cell+12);
+    const ox=pad,oy=pad+labelH;
+    const drawGrid=(r0,c0,rows,cols,filled,getColor)=>{
+      for(let r=0;r<rows;r++)for(let c=0;c<cols;c++){
+        const x=ox+c0*cell+c*cell,y=oy+r0*cell+r*cell;
+        ctx.fillStyle=getColor?getColor(r,c):(filled(r,c)?'#1a1a1a':'#f5f4f2');
+        ctx.fillRect(x,y,cell,cell);
+        ctx.strokeStyle='#d0cec8';ctx.lineWidth=0.5;
+        ctx.strokeRect(x,y,cell,cell);
+      }
+    };
+    // Threading S
+    drawGrid(0,0,curSh,wp,(s,x)=>curS[s][x]);
+    // Tie-up T
+    drawGrid(0,wp+1,curSh,curTr,(s,t)=>curT[s][t]);
+    // Drawdown F (colored)
+    const dF2=weave(curS,curR,curT,curSh,curTr,wp,wr,wp,wr);
+    drawGrid(curSh+1,0,wr,wp,null,(y,x)=>{ctx.fillStyle=dF2[y][x]?curWarpC[x%wp]:curWeftC[y%wr];return null;});
+    // Re-draw drawdown with color (drawGrid above can't return the color directly)
+    for(let r=0;r<wr;r++)for(let c=0;c<wp;c++){
+      const x=ox+c*cell,y=oy+(curSh+1)*cell+r*cell;
+      ctx.fillStyle=dF2[r][c]?curWarpC[c%wp]:curWeftC[r%wr];
+      ctx.fillRect(x,y,cell,cell);
+      ctx.strokeStyle='#d0cec8';ctx.lineWidth=0.5;ctx.strokeRect(x,y,cell,cell);
+    }
+    // Treadling R
+    drawGrid(curSh+1,wp+1,wr,curTr,(y,t)=>curR[y][t]);
+    // Warp swatches (above threading)
+    for(let x=0;x<wp;x++){ctx.fillStyle=curWarpC[x%wp];ctx.fillRect(ox+x*cell,oy-8,cell,6);}
+    // Weft swatches (left of drawdown)
+    for(let y=0;y<wr;y++){ctx.fillStyle=curWeftC[y%wr];ctx.fillRect(ox-8,oy+(curSh+1)*cell+y*cell,6,cell);}
+    const a=document.createElement('a');a.href=oc.toDataURL();a.download='weave-draft.png';a.click();
+  };
+
+  const downloadWIF=()=>{
+    const curS=mode==='forward'?S:deduced.S;
+    const curR=mode==='forward'?R:deduced.R;
+    const curT=mode==='forward'?T:deduced.T;
+    const curSh=mode==='forward'?sh:deduced.sh;
+    const curTr=mode==='forward'?tr:deduced.tr;
+    const curWarpC=mode==='forward'?warpC:Array(wp).fill(rWarpC);
+    const curWeftC=mode==='forward'?weftC:Array(wr).fill(rWeftC);
+    // Build unique color list (warp + weft colors)
+    const colorList=[...new Set([...curWarpC,...curWeftC])];
+    const ci=c=>colorList.indexOf(c)+1; // 1-indexed
+    const toRGB=hex=>[parseInt(hex.slice(1,3),16),parseInt(hex.slice(3,5),16),parseInt(hex.slice(5,7),16)].join(',');
+    // Thickness map (our 5 levels → mm)
+    const thMap=[0,2,4,6,8,10]; // CANVAS_TP values
+    const spMap=[0,2,4,7,11];   // CANVAS_SP values
+    const toMM=px=>Math.round(px*0.264583*10)/10; // px → mm (96dpi assumption)
+    const lines=[];
+    // Header
+    lines.push('[WIF]','Version=1.1','Date='+new Date().toDateString(),
+      'Source Program=Digital Loom','Source Version=1.0','');
+    // Contents
+    lines.push('[CONTENTS]','COLOR PALETTE=true','COLOR TABLE=true',
+      'THREADING=true','TIEUP=true','TREADLING=true',
+      'WARP=true','WEFT=true','WARP COLORS=true','WEFT COLORS=true','');
+    // Color palette
+    lines.push('[COLOR PALETTE]',`Entries=${colorList.length}`,'Form=RGB','Unit=Max','');
+    // Color table
+    lines.push('[COLOR TABLE]');
+    colorList.forEach((c,i)=>lines.push(`${i+1}=${toRGB(c)}`));
+    lines.push('');
+    // Warp
+    lines.push('[WARP]',`Threads=${wp}`,'Units=Centimeters','Spacing=0.06','Thickness=0.06','');
+    // Weft
+    lines.push('[WEFT]',`Threads=${wr}`,'Units=Centimeters','Spacing=0.06','Thickness=0.06','');
+    // Threading: thread → shaft (1-indexed)
+    lines.push('[THREADING]');
+    for(let x=0;x<wp;x++){
+      for(let s=0;s<curSh;s++){if(curS[s][x]){lines.push(`${x+1}=${s+1}`);break;}}
+    }
+    lines.push('');
+    // Tie-up: treadle → shafts it lifts (1-indexed)
+    lines.push('[TIEUP]');
+    for(let t=0;t<curTr;t++){
+      const shafts=[];
+      for(let s=0;s<curSh;s++){if(curT[s][t])shafts.push(s+1);}
+      if(shafts.length)lines.push(`${t+1}=${shafts.join(',')}`);
+    }
+    lines.push('');
+    // Treadling: pick → treadle(s) used (supports multi-treadle)
+    lines.push('[TREADLING]');
+    for(let y=0;y<wr;y++){
+      const treadles=[];
+      for(let t=0;t<curTr;t++){if(curR[y][t])treadles.push(t+1);}
+      if(treadles.length)lines.push(`${y+1}=${treadles.join(',')}`);
+    }
+    lines.push('');
+    // Warp colors
+    lines.push('[WARP COLORS]');
+    for(let x=0;x<wp;x++)lines.push(`${x+1}=${ci(curWarpC[x%wp])}`);
+    lines.push('');
+    // Weft colors
+    lines.push('[WEFT COLORS]');
+    for(let y=0;y<wr;y++)lines.push(`${y+1}=${ci(curWeftC[y%wr])}`);
+    lines.push('');
+    // Per-thread thickness (if non-default)
+    if(mode==='forward'){
+      lines.push('[WARP THICKNESS]');
+      for(let x=0;x<wp;x++)lines.push(`${x+1}=${toMM(thMap[warpTh[x]])}`);
+      lines.push('');
+      lines.push('[WEFT THICKNESS]');
+      for(let y=0;y<wr;y++)lines.push(`${y+1}=${toMM(thMap[weftTh[y]])}`);
+      lines.push('');
+    }
+    const blob=new Blob([lines.join('\r\n')],{type:'text/plain'});
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement('a');a.href=url;a.download='weave-draft.wif';a.click();
+    URL.revokeObjectURL(url);
+  };
+
   const smBtn=(txt,fn,dim)=>h('button',{onClick:fn,style:{padding:'4px 10px',fontSize:11,borderRadius:5,cursor:'pointer',background:'transparent',color:'var(--ts)',border:`0.5px solid ${dim?'var(--bp2)':'var(--bp1)'}`,textAlign:'left'}},txt);
   const dlBtn=(label,fn)=>h('button',{onClick:fn,style:{padding:'5px 12px',fontSize:12,borderRadius:6,cursor:'pointer',background:'transparent',border:'0.5px solid var(--bp1)',color:'var(--ts)',display:'flex',alignItems:'center',gap:5,flexShrink:0}},DARROW+'\u00a0'+label);
   const divider=h('div',{style:{borderTop:'0.5px solid var(--bp3)',margin:'8px 0'}});
@@ -283,7 +414,7 @@ function DigitalLoom(){
       ),
       h('div',{style:{fontSize:10,color:'var(--tt)',marginTop:3}},'\u2191 weft threads \u2014 click to select'),
       h('div',{style:{fontSize:11,color:'var(--tt)',marginTop:5,lineHeight:1.6}},'Threading: one per column \u00B7 Treadling: multi-pick \u00B7 Tie-up: toggle freely'),
-      h('div',{style:{marginTop:12}},dlBtn('Download draft PNG',()=>{}))
+      h('div',{style:{marginTop:12,display:'flex',gap:6,flexWrap:'wrap'}},dlBtn('Download draft PNG',downloadDraft),dlBtn('Download WIF',downloadWIF))
     ),
     // Thread editor
     h('div',{style:{width:186,flexShrink:0}},
@@ -358,7 +489,7 @@ function DigitalLoom(){
         h('span',{style:{fontSize:12,fontWeight:500}},`${dSh} shaft${dSh!==1?'s':''} \u00B7 ${dTr} treadle${dTr!==1?'s':''} required`),
         h('div',{style:{fontSize:10,color:'var(--tt)',marginTop:1}},'Column color = shaft \u00B7 Row color = treadle')
       ),
-      h('div',{style:{marginTop:10}},dlBtn('Download draft PNG',()=>{}))
+      h('div',{style:{marginTop:10,display:'flex',gap:6,flexWrap:'wrap'}},dlBtn('Download draft PNG',downloadDraft),dlBtn('Download WIF',downloadWIF))
     ),
     h('div',{style:{flexShrink:0}},
       h('div',{style:{fontSize:12,fontWeight:500,color:'var(--tp)',marginBottom:10}},'Deduced draft'),
